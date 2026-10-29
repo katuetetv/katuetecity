@@ -1,48 +1,42 @@
 # 🏙️ KatueteCity — La Ciudad de la Integración
 
-Juego 3D en el navegador de construcción de ciudades y simulación económica con la moneda local **Oikos**, desarrollado con **Three.js**, **WebGL** y **WebSockets (Socket.io)**.
+Juego 3D en el navegador de construcción de ciudades y simulación económica con la moneda local **Oikos**, desarrollado con **Three.js**, **WebGL** y **Firebase Authentication**.
 
 ---
 
-## 🚀 Cómo Hospedar en GitHub Pages (Paso a Paso)
+## 🔐 Autenticación con Google Firebase
 
-Este proyecto está 100% optimizado para funcionar como sitio web estático en **GitHub Pages**.
-
-### Paso 1: Crear un nuevo repositorio en GitHub
-1. Ingresa a tu cuenta de [GitHub](https://github.com).
-2. Haz clic en **New repository** (Nuevo repositorio).
-3. Nómbralo por ejemplo: `KatueteCity`.
-4. Elige que sea **Público** y haz clic en **Create repository**.
-
-### Paso 2: Subir los archivos
-Abre tu terminal en la carpeta del proyecto (`c:\Users\59598\Downloads\KatueteCity`) y ejecuta:
-
-```bash
-git init
-git add .
-git commit -m "Lanzamiento KatueteCity con economia Oikos"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/KatueteCity.git
-git push -u origin main
-```
-*(Reemplaza `TU_USUARIO` con tu nombre de usuario de GitHub)*
-
-### Paso 3: Activar GitHub Pages
-1. En tu repositorio de GitHub, ve a la pestaña **Settings** (Configuración).
-2. En el menú de la izquierda, haz clic en **Pages**.
-3. En **Branch** (Rama), selecciona `main` y la carpeta `/(root)`.
-4. Haz clic en **Save** (Guardar).
-5. Espera unos segundos y GitHub te proporcionará el enlace público de tu juego:
-   `https://TU_USUARIO.github.io/KatueteCity/`
+El juego cuenta con un sistema de cuentas seguro y persistente gracias a **Firebase Authentication**:
+* **Iniciar Sesión / Crear Cuenta con Correo y Contraseña.**
+* **Iniciar Sesión con Google (un solo clic).**
+* **Auto-Login:** Si cierras la pestaña o recargas, tu sesión se mantiene abierta.
+* **Persistencia por Usuario:** Tus Oikos y tus casas alquiladas se asocian de forma única a tu `User ID` de Firebase.
 
 ---
 
-## 🎮 Mecánicas del Juego
+## ⚙️ Pasos Finales en tu Consola de Firebase
 
-* **🪙 Economía en Oikos:** Inicias con 1,000 Oikos de capital.
-* **💼 Sistema de Trabajo:** Haz clic en **Trabajar (+350 Oikos)** para cumplir turnos laborales y cobrar tu salario.
-* **🔑 Alquiler de Viviendas:** Selecciona casas familiares, sobrados o edificios departamentales y haz clic en **Alquilar Vivienda** por 150 Oikos/ciclo.
-* **🔨 Construcción Libre:** Traza calles arrastrando con el ratón y construye casas, tiendas, estaciones de servicio, usinas y tanques de agua potable.
-* **🔄 Rotación de Edificios:** Pulsa la tecla <kbd>R</kbd> antes de colocar cualquier edificio.
-* **💾 Guardado en el Navegador:** Guarda el estado de tu ciudad en cualquier momento con el botón **Guardar**.
+Para que el inicio de sesión funcione tanto en tu computadora (`localhost`) como en **GitHub Pages**:
 
+1. Ingresa a [Firebase Console](https://console.firebase.google.com/) y abre tu proyecto **`katuetecity`**.
+2. Ve a **Authentication** ➔ pestaña **Sign-in method**:
+   * Asegúrate de habilitar **Correo electrónico / Contraseña**.
+   * Habilita **Google** (si deseas permitir inicio de sesión con Google).
+3. Ve a la pestaña **Settings** (Ajustes de Authentication) ➔ **Authorized domains** (Dominios autorizados):
+   * Verifica que esté `localhost`.
+   * Agrega el dominio de tu GitHub Pages: **`TU_USUARIO.github.io`** (sin `https://`).
+
+---
+
+## 🚀 Cómo Hospedar en GitHub Pages
+
+1. Abre tu terminal en la carpeta del proyecto:
+   ```bash
+   git add .
+   git commit -m "Integracion completa de Firebase Authentication en KatueteCity"
+   git push origin main
+   ```
+2. En tu repositorio de GitHub, ve a **Settings** ➔ **Pages**.
+3. En **Branch**, selecciona `main` y guarda.
+4. Tu juego estará disponible públicamente en:
+   👉 **`https://TU_USUARIO.github.io/KatueteCity/`**

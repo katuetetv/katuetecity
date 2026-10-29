@@ -1,21 +1,47 @@
 /**
  * ============================================================
- * KatueteCity — La Ciudad de la Integración (GitHub Pages Ready)
- * Compatible tanto con Servidor WebSockets como en Modo Estático Autónomo
+ * KatueteCity — La Ciudad de la Integración
+ * Firebase Authentication + Three.js + Economía en Oikos
  * ============================================================
  */
 
-'use strict';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut, 
+  onAuthStateChanged 
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 /* ============================================================
-   1. DETECCIÓN DE ENTORNO Y CONEXIÓN SOCKET
+   1. INICIALIZACIÓN DE FIREBASE AUTHENTICATION
    ============================================================ */
-let socket = null;
-let modoMultijugadorActivo = false;
+const firebaseConfig = {
+  apiKey: "AIzaSyABCa1xFEbq-kvV6FKP4LYnlOcBdrAvWdk",
+  authDomain: "katuetecity.firebaseapp.com",
+  projectId: "katuetecity",
+  storageBucket: "katuetecity.firebasestorage.app",
+  messagingSenderId: "165967285440",
+  appId: "1:165967285440:web:86e49e298ec05027933125",
+  measurementId: "G-57RW0C425G"
+};
 
-// Perfil del jugador local
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+/* ============================================================
+   2. ESTADO DEL JUGADOR Y DE LA CIUDAD
+   ============================================================ */
+let usuarioFirebase = null;
+
 const jugadorLocal = {
+  uid: null,
   nombre: 'Ciudadano',
+  email: '',
   oikos: 1000,
   trabajando: false,
   tiempoTurnoRestante: 0,
@@ -23,7 +49,6 @@ const jugadorLocal = {
   casasAlquiladas: []
 };
 
-// Configuración de la Ciudad
 const TAMANHO_GRADE  = 40;
 const TAMANHO_CELULA = 4;
 const COSTO_ALQUILER_CICLO = 150;
@@ -58,34 +83,8 @@ for (let z = 0; z < TAMANHO_GRADE; z++) {
   }
 }
 
-// Intentar conexión opcional a Socket.io si no es GitHub Pages estático
-function intentarConexionSocket(nombre) {
-  if (typeof io !== 'undefined') {
-    try {
-      socket = io({
-        timeout: 2500,
-        reconnectionAttempts: 1
-      });
-
-      socket.on('connect', () => {
-        modoMultijugadorActivo = true;
-        configurarEventosSocket();
-        socket.emit('iniciar_sesion', { nombre });
-      });
-
-      socket.on('connect_error', () => {
-        iniciarModoAutonomo(nombre);
-      });
-    } catch (e) {
-      iniciarModoAutonomo(nombre);
-    }
-  } else {
-    iniciarModoAutonomo(nombre);
-  }
-}
-
 /* ============================================================
-   2. SISTEMA DE AUDIO SINTETIZADO (Web Audio API)
+   3. SISTEMA DE AUDIO SINTETIZADO (Web Audio API)
    ============================================================ */
 let audioCtx = null;
 function obtenerAudioContext() {
@@ -159,69 +158,146 @@ function tocarSonido(tipo) {
 }
 
 /* ============================================================
-   3. GESTIÓN DE IDENTIDAD (FORMULARIO DE INGRESO)
+   4. EVENTOS DE AUTENTICACIÓN FIREBASE
    ============================================================ */
 const formLogin = document.getElementById('form-login');
-const campoNombre = document.getElementById('campo-nombre-jugador');
+const campoEmail = document.getElementById('campo-email');
+const campoSenha = document.getElementById('campo-senha');
+const btnRegistrarse = document.getElementById('btn-registrarse');
+const btnGoogle = document.getElementById('btn-google');
 const msgErro = document.getElementById('msg-erro');
 
-formLogin.addEventListener('submit', (e) => {
+// 4.1 Iniciar Sesión con Correo y Contraseña
+formLogin.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const nombreElegido = campoNombre.value.trim();
+  msgErro.textContent = '';
+  const email = campoEmail.value.trim();
+  const password = campoSenha.value;
 
-  if (!nombreElegido) {
-    msgErro.textContent = 'Por favor ingresa tu nombre de ciudadano.';
-    return;
-  }
-
-  obtenerAudioContext();
-
-  // Si estamos alojados en GitHub Pages (o sin backend), iniciar modo autónomo inmediatamente
-  if (window.location.hostname.includes('github.io') || window.location.protocol === 'file:') {
-    iniciarModoAutonomo(nombreElegido);
-  } else {
-    intentarConexionSocket(nombreElegido);
-    // Timeout de resguardo por si no hay respuesta de backend en 1.5s
-    setTimeout(() => {
-      if (!modoMultijugadorActivo && document.getElementById('tela-login').style.display !== 'none') {
-        iniciarModoAutonomo(nombreElegido);
-      }
-    }, 1500);
+  try {
+    obtenerAudioContext();
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    mostrarErrorAuth(error.code);
   }
 });
 
-/* ============================================================
-   4. MODO AUTÓNOMO (100% COMPATIBLE CON GITHUB PAGES)
-   ============================================================ */
-function iniciarModoAutonomo(nombre) {
-  jugadorLocal.nombre = nombre;
-  jugadorLocal.oikos = 1000;
+// 4.2 Crear Nueva Cuenta con Correo y Contraseña
+btnRegistrarse.addEventListener('click', async () => {
+  msgErro.textContent = '';
+  const email = campoEmail.value.trim();
+  const password = campoSenha.value;
 
-  // Ocultar login y mostrar HUD + Canvas
+  if (!email || !password) {
+    msgErro.textContent = 'Por favor completa el correo y una contraseña (mínimo 6 caracteres).';
+    return;
+  }
+
+  try {
+    obtenerAudioContext();
+    await createUserWithEmailAndPassword(auth, email, password);
+    mostrarNotificacion('🎉 ¡Cuenta creada con éxito en KatueteCity!');
+  } catch (error) {
+    mostrarErrorAuth(error.code);
+  }
+});
+
+// 4.3 Iniciar Sesión con Google
+btnGoogle.addEventListener('click', async () => {
+  msgErro.textContent = '';
+  try {
+    obtenerAudioContext();
+    await signInWithPopup(auth, googleProvider);
+  } catch (error) {
+    mostrarErrorAuth(error.code);
+  }
+});
+
+// 4.4 Cerrar Sesión
+document.getElementById('btn-desconectar').addEventListener('click', async () => {
+  try {
+    await signOut(auth);
+    location.reload();
+  } catch (error) {
+    console.error('Error al cerrar sesión:', error);
+  }
+});
+
+// 4.5 Observador del Estado de Autenticación (Auto-Login)
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    usuarioFirebase = user;
+    const nombreExtraido = user.displayName || user.email.split('@')[0];
+    iniciarSesionCiudadano(user.uid, nombreExtraido, user.email);
+  } else {
+    document.getElementById('tela-login').style.display = 'flex';
+    document.getElementById('hud').style.display = 'none';
+    const canvas = document.getElementById('canvas-jogo');
+    if (canvas) canvas.style.display = 'none';
+  }
+});
+
+function mostrarErrorAuth(codigo) {
+  tocarSonido('error');
+  switch (codigo) {
+    case 'auth/invalid-email':
+      msgErro.textContent = 'El formato del correo electrónico no es válido.';
+      break;
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      msgErro.textContent = 'Correo o contraseña incorrectos.';
+      break;
+    case 'auth/email-already-in-use':
+      msgErro.textContent = 'Este correo ya tiene una cuenta registrada.';
+      break;
+    case 'auth/weak-password':
+      msgErro.textContent = 'La contraseña debe tener al menos 6 caracteres.';
+      break;
+    case 'auth/popup-closed-by-user':
+      msgErro.textContent = 'Inicio de sesión con Google cancelado.';
+      break;
+    default:
+      msgErro.textContent = 'Error de autenticación. Verifica tus datos.';
+      break;
+  }
+}
+
+/* ============================================================
+   5. INICIALIZACIÓN DEL JUGADOR Y LA CIUDAD
+   ============================================================ */
+function iniciarSesionCiudadano(uid, nombre, email) {
+  jugadorLocal.uid = uid;
+  jugadorLocal.nombre = nombre;
+  jugadorLocal.email = email;
+
   document.getElementById('tela-login').style.display = 'none';
   document.getElementById('canvas-jogo').style.display = 'block';
   document.getElementById('hud').style.display = 'block';
 
+  // Cargar progreso del usuario
+  recuperarCiudadGuardada();
   actualizarHUD();
 
   if (!renderizador) {
     iniciarMotor3D();
   }
 
-  // Cargar ciudad guardada o generar la ciudad base
-  if (!recuperarCiudadGuardada()) {
+  // Generar la ciudad si la celda central está vacía
+  const centro = Math.floor(TAMANHO_GRADE / 2);
+  if (estado.grade[centro][centro] === null) {
     generarCiudadBase();
   }
 
-  // Lista de ciudadanos de KatueteCity para dar dinamismo a la interfaz
-  const ciudadanosEjemplo = [
+  // Lista de ciudadanos para la interfaz
+  const ciudadanos = [
     { nombre: jugadorLocal.nombre, oikos: jugadorLocal.oikos },
     { nombre: 'Alcalde_Katuete', oikos: 15400 },
     { nombre: 'Ingeniero_Itaipu', oikos: 8200 },
     { nombre: 'Agricultor_Canindeyu', oikos: 4900 }
   ];
-  actualizarListaCiudadanos(ciudadanosEjemplo);
-  document.getElementById('stat-jugadores-online').textContent = ciudadanosEjemplo.length;
+  actualizarListaCiudadanos(ciudadanos);
+  document.getElementById('stat-jugadores-online').textContent = ciudadanos.length;
 
   iniciarCicloAlquilerLocal();
   desenharMiniMapa();
@@ -236,7 +312,7 @@ function generarCiudadBase() {
   for (let x = c - 7; x <= c + 7; x++) instanciarObjetoLocal('estrada', x, c, 0, null, 'Municipio');
   for (let z = c - 7; z <= c + 7; z++) instanciarObjetoLocal('estrada', c, z, 0, null, 'Municipio');
 
-  // Viviendas disponibles para alquiler
+  // Viviendas disponibles para alquilar
   instanciarObjetoLocal('casa', c - 2, c - 2, 0, null, 'Municipio');
   instanciarObjetoLocal('sobrado', c - 2, c + 2, 0, null, 'Municipio');
   instanciarObjetoLocal('casa', c + 2, c - 2, 0, null, 'Municipio');
@@ -248,87 +324,6 @@ function generarCiudadBase() {
   instanciarObjetoLocal('parque', c + 3, c - 4, 0, null, 'Municipio');
   instanciarObjetoLocal('usina', c - 5, c + 4, 0, null, 'Municipio');
   instanciarObjetoLocal('caixaDAgua', c + 5, c + 4, 0, null, 'Municipio');
-}
-
-/* ============================================================
-   5. EVENTOS SOCKET.IO (MODO MULTIJUGADOR)
-   ============================================================ */
-function configurarEventosSocket() {
-  if (!socket) return;
-
-  socket.on('bienvenida', (datos) => {
-    jugadorLocal.nombre = datos.perfil.nombre;
-    jugadorLocal.oikos = datos.perfil.oikos;
-
-    document.getElementById('tela-login').style.display = 'none';
-    document.getElementById('canvas-jogo').style.display = 'block';
-    document.getElementById('hud').style.display = 'block';
-
-    actualizarHUD();
-
-    if (!renderizador) {
-      iniciarMotor3D();
-    }
-
-    datos.mapa.forEach(item => {
-      instanciarObjetoLocal(item.tipo, item.x, item.z, item.rot || 0, item.inquilino, item.autor);
-    });
-
-    actualizarListaCiudadanos(datos.jugadoresOnline);
-    desenharMiniMapa();
-    tocarSonido('monedas');
-    mostrarNotificacion(`🎉 Conectado al servidor multijugador como ${jugadorLocal.nombre}`);
-  });
-
-  socket.on('objeto_construido', (datos) => {
-    instanciarObjetoLocal(datos.tipo, datos.gx, datos.gz, datos.rot, datos.inquilino, datos.autor);
-    desenharMiniMapa();
-  });
-
-  socket.on('objeto_demolido', (datos) => {
-    eliminarObjetoLocal(datos.gx, datos.gz);
-    desenharMiniMapa();
-  });
-
-  socket.on('casa_actualizada', (datos) => {
-    const celda = estado.grade[datos.gz]?.[datos.gx];
-    if (celda) celda.inquilino = datos.inquilino;
-    if (estado.celulaSelecionada && estado.celulaSelecionada.gx === datos.gx && estado.celulaSelecionada.gz === datos.gz) {
-      mostrarDetallesCelula(datos.gx, datos.gz);
-    }
-  });
-
-  socket.on('actualizar_lista_jugadores', (lista) => {
-    actualizarListaCiudadanos(lista);
-    document.getElementById('stat-jugadores-online').textContent = lista.length;
-  });
-
-  socket.on('turno_iniciado', (datos) => {
-    jugadorLocal.trabajando = true;
-    jugadorLocal.duracionTurnoTotal = datos.duracion;
-    jugadorLocal.tiempoTurnoRestante = datos.duracion;
-    actualizarEstadoTrabajoUI();
-  });
-
-  socket.on('progreso_trabajo', (datos) => {
-    jugadorLocal.tiempoTurnoRestante = datos.segundosRestantes;
-    actualizarEstadoTrabajoUI();
-  });
-
-  socket.on('trabajo_completado', (datos) => {
-    jugadorLocal.trabajando = false;
-    jugadorLocal.tiempoTurnoRestante = 0;
-    jugadorLocal.oikos = datos.nuevoSaldoOikos;
-    actualizarEstadoTrabajoUI();
-    actualizarHUD();
-    tocarSonido('monedas');
-    mostrarNotificacion(`💰 Salario recibido: +${datos.salarioGanado} Oikos`);
-  });
-
-  socket.on('notificacion', (d) => {
-    mostrarNotificacion(d.mensaje);
-    if (d.tipo === 'error') tocarSonido('error');
-  });
 }
 
 /* ============================================================
@@ -358,7 +353,6 @@ function iniciarMotor3D() {
   configurarIluminacao();
   criarTerreno();
 
-  // Plano para Raycast
   const total = TAMANHO_GRADE * TAMANHO_CELULA;
   const geoPlano = new THREE.PlaneGeometry(total * 2, total * 2);
   planoChaoInvisivel = new THREE.Mesh(geoPlano, new THREE.MeshBasicMaterial({ visible: false }));
@@ -761,17 +755,12 @@ function configurarEventosInteraccion() {
     actualizarCoordenadasMouse(e);
     const pt = obtenerInterseccionChao();
 
-    // Finalizar trazado de calle
     if (estado.arrastandoEstrada && estado.inicioArrasto && pt) {
       const destino = mundoParaGrade(pt.x, pt.z);
       const camino = obtenerCaminoL(estado.inicioArrasto, destino);
       camino.forEach(c => {
         if (celulaValida(c.gx, c.gz) && estado.grade[c.gz][c.gx] === null) {
-          if (modoMultijugadorActivo && socket) {
-            socket.emit('solicitar_construccion', { tipo: 'estrada', gx: c.gx, gz: c.gz, rot: 0 });
-          } else {
-            instanciarObjetoLocal('estrada', c.gx, c.gz, 0, null, jugadorLocal.nombre);
-          }
+          instanciarObjetoLocal('estrada', c.gx, c.gz, 0, null, jugadorLocal.nombre);
         }
       });
       tocarSonido('construir');
@@ -782,14 +771,12 @@ function configurarEventosInteraccion() {
       return;
     }
 
-    // Clic simple
     if (dist < DISTANCIA_CLIQUE_MAX_PX && pt) {
       const { gx, gz } = mundoParaGrade(pt.x, pt.z);
       procesarClicEnGrilla(gx, gz);
     }
   });
 
-  // Teclado
   window.addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') {
       estado.rotacaoAtual = (estado.rotacaoAtual + 90) % 360;
@@ -799,19 +786,14 @@ function configurarEventosInteraccion() {
       seleccionarHerramienta('ponteiro');
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       if (estado.celulaSelecionada) {
-        if (modoMultijugadorActivo && socket) {
-          socket.emit('solicitar_demolicion', { gx: estado.celulaSelecionada.gx, gz: estado.celulaSelecionada.gz });
-        } else {
-          eliminarObjetoLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
-          tocarSonido('demolir');
-          desenharMiniMapa();
-          mostrarNotificacion('💥 Edificio demolido.');
-        }
+        eliminarObjetoLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
+        tocarSonido('demolir');
+        desenharMiniMapa();
+        mostrarNotificacion('💥 Edificio demolido.');
       }
     }
   });
 
-  // Botones de Herramientas
   document.querySelectorAll('.btn-ferramenta').forEach(btn => {
     btn.addEventListener('click', () => {
       seleccionarHerramienta(btn.dataset.ferramenta);
@@ -822,34 +804,20 @@ function configurarEventosInteraccion() {
   const btnTrabajar = document.getElementById('btn-trabajar');
   btnTrabajar.addEventListener('click', () => {
     if (!jugadorLocal.trabajando) {
-      if (modoMultijugadorActivo && socket) {
-        socket.emit('iniciar_turno_trabajo');
-      } else {
-        iniciarTurnoTrabajoLocal();
-      }
+      iniciarTurnoTrabajoLocal();
     }
   });
 
   // Botones de Alquiler / Desalojo
   document.getElementById('btn-alquilar-casa').addEventListener('click', () => {
     if (estado.celulaSelecionada) {
-      const { gx, gz } = estado.celulaSelecionada;
-      if (modoMultijugadorActivo && socket) {
-        socket.emit('alquilar_vivienda', { gx, gz });
-      } else {
-        alquilarCasaLocal(gx, gz);
-      }
+      alquilarCasaLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
     }
   });
 
   document.getElementById('btn-desalojar-casa').addEventListener('click', () => {
     if (estado.celulaSelecionada) {
-      const { gx, gz } = estado.celulaSelecionada;
-      if (modoMultijugadorActivo && socket) {
-        socket.emit('desalojar_vivienda', { gx, gz });
-      } else {
-        desalojarCasaLocal(gx, gz);
-      }
+      desalojarCasaLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
     }
   });
 
@@ -860,10 +828,6 @@ function configurarEventosInteraccion() {
   document.getElementById('btn-toggle-ciudadanos').addEventListener('click', () => {
     const p = document.getElementById('panel-ciudadanos');
     p.style.display = (p.style.display === 'block') ? 'none' : 'block';
-  });
-
-  document.getElementById('btn-desconectar').addEventListener('click', () => {
-    location.reload();
   });
 
   window.addEventListener('resize', () => {
@@ -883,37 +847,29 @@ function procesarClicEnGrilla(gx, gz) {
     estado.celulaSelecionada = { gx, gz };
     mostrarDetallesCelula(gx, gz);
   } else if (ferr === 'demolir') {
-    if (modoMultijugadorActivo && socket) {
-      socket.emit('solicitar_demolicion', { gx, gz });
-    } else {
-      eliminarObjetoLocal(gx, gz);
-      tocarSonido('demolir');
-      desenharMiniMapa();
-      mostrarNotificacion('💥 Edificio demolido.');
-    }
+    eliminarObjetoLocal(gx, gz);
+    tocarSonido('demolir');
+    desenharMiniMapa();
+    mostrarNotificacion('💥 Edificio demolido.');
   } else {
-    // Construcción
     const costo = COSTOS_CONSTRUCCION[ferr] || 0;
     if (jugadorLocal.oikos < costo) {
-      mostrarNotificacao(`❌ Saldo insuficiente (${costo} Oikos necesarios).`);
+      mostrarNotificacion(`❌ Saldo insuficiente (${costo} Oikos necesarios).`);
       tocarSonido('error');
       return;
     }
 
-    if (modoMultijugadorActivo && socket) {
-      socket.emit('solicitar_construccion', { tipo: ferr, gx, gz, rot: estado.rotacaoAtual });
-    } else {
-      if (estado.grade[gz][gx] !== null) {
-        mostrarNotificacion('⚠️ Terreno ya ocupado.');
-        return;
-      }
-      jugadorLocal.oikos -= costo;
-      instanciarObjetoLocal(ferr, gx, gz, estado.rotacaoAtual, null, jugadorLocal.nombre);
-      actualizarHUD();
-      tocarSonido('construir');
-      desenharMiniMapa();
-      mostrarNotificacion(`🔨 ${ferr.toUpperCase()} construido con éxito.`);
+    if (estado.grade[gz][gx] !== null) {
+      mostrarNotificacion('⚠️ Terreno ya ocupado.');
+      return;
     }
+
+    jugadorLocal.oikos -= costo;
+    instanciarObjetoLocal(ferr, gx, gz, estado.rotacaoAtual, null, jugadorLocal.nombre);
+    actualizarHUD();
+    tocarSonido('construir');
+    desenharMiniMapa();
+    mostrarNotificacion(`🔨 ${ferr.toUpperCase()} construido con éxito.`);
   }
 }
 
@@ -937,6 +893,7 @@ function iniciarTurnoTrabajoLocal() {
       jugadorLocal.oikos += SALARIO_TURNO_OIKOS;
       actualizarEstadoTrabajoUI();
       actualizarHUD();
+      guardarCiudadEnStorage(false);
       tocarSonido('monedas');
       mostrarNotificacion(`💰 ¡Turno cumplido! Recibiste tu salario de +${SALARIO_TURNO_OIKOS} Oikos.`);
     }
@@ -964,6 +921,7 @@ function alquilarCasaLocal(gx, gz) {
 
   actualizarHUD();
   mostrarDetallesCelula(gx, gz);
+  guardarCiudadEnStorage(false);
   tocarSonido('monedas');
   mostrarNotificacion(`🔑 ¡Has alquilado la vivienda en (${gx}, ${gz})!`);
 }
@@ -976,6 +934,7 @@ function desalojarCasaLocal(gx, gz) {
   jugadorLocal.casasAlquiladas = jugadorLocal.casasAlquiladas.filter(c => !(c.gx === gx && c.gz === gz));
 
   mostrarDetallesCelula(gx, gz);
+  guardarCiudadEnStorage(false);
   mostrarNotificacion('🚪 Has entregado las llaves de la vivienda.');
 }
 
@@ -987,6 +946,7 @@ function iniciarCicloAlquilerLocal() {
     if (jugadorLocal.oikos >= totalCobro) {
       jugadorLocal.oikos -= totalCobro;
       actualizarHUD();
+      guardarCiudadEnStorage(false);
       mostrarNotificacion(`🏠 Pago periódico de alquiler: -${totalCobro} Oikos (${jugadorLocal.casasAlquiladas.length} casas).`);
     } else {
       mostrarNotificacion('⚠️ Saldo insuficiente para pagar el alquiler. Tus contratos han sido cancelados.');
@@ -994,15 +954,19 @@ function iniciarCicloAlquilerLocal() {
         if (estado.grade[gz]?.[gx]) estado.grade[gz][gx].inquilino = null;
       });
       jugadorLocal.casasAlquiladas = [];
+      guardarCiudadEnStorage(false);
       if (estado.celulaSelecionada) mostrarDetallesCelula(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
     }
   }, 45000);
 }
 
 /* ============================================================
-   11. PERSISTENCIA LOCAL (SAVE / LOAD PARA GITHUB PAGES)
+   11. PERSISTENCIA VINCULADA AL USUARIO DE FIREBASE
    ============================================================ */
-function guardarCiudadEnStorage() {
+function guardarCiudadEnStorage(notificar = true) {
+  if (!jugadorLocal.uid) return;
+  const clave = `katuete_save_${jugadorLocal.uid}`;
+
   const guardado = {
     nombre: jugadorLocal.nombre,
     oikos: jugadorLocal.oikos,
@@ -1019,13 +983,17 @@ function guardarCiudadEnStorage() {
     }
   }
 
-  localStorage.setItem('katuetecity_pages_save', JSON.stringify(guardado));
-  tocarSonido('monedas');
-  mostrarNotificacion('💾 ¡Ciudad guardada en tu navegador con éxito!');
+  localStorage.setItem(clave, JSON.stringify(guardado));
+  if (notificar) {
+    tocarSonido('monedas');
+    mostrarNotificacion('💾 ¡Progreso guardado con éxito en tu cuenta!');
+  }
 }
 
 function recuperarCiudadGuardada() {
-  const data = localStorage.getItem('katuetecity_pages_save');
+  if (!jugadorLocal.uid) return false;
+  const clave = `katuete_save_${jugadorLocal.uid}`;
+  const data = localStorage.getItem(clave);
   if (!data) return false;
 
   try {

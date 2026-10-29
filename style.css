@@ -1,5 +1,5 @@
 /* ============================================================
-   KatueteCity — Estilos Globales v3.0 (Multijugador & Oikos)
+   KatueteCity — Estilos Globales v4.0 (Firebase Auth Ready)
    ============================================================ */
 
 * {
@@ -9,17 +9,17 @@
 }
 
 :root {
-  --cor-primaria: #1a6b2a;
+  --cor-primaria:   #1a6b2a;
   --cor-secundaria: #2d9e42;
-  --cor-acento: #fbc02d;
-  --cor-oikos: #ffd54f;
-  --cor-fundo: #0a180f;
-  --cor-painel: rgba(10, 25, 15, 0.94);
-  --cor-texto: #e8f5e9;
-  --cor-texto-dim: #a5d6a7;
-  --cor-borda: #2d9e42;
-  --sombra: 0 4px 24px rgba(0, 0, 0, 0.7);
-  --raio: 8px;
+  --cor-acento:     #fbc02d;
+  --cor-oikos:      #ffd54f;
+  --cor-fundo:      #0a180f;
+  --cor-painel:     rgba(10, 25, 15, 0.94);
+  --cor-texto:      #e8f5e9;
+  --cor-texto-dim:  #a5d6a7;
+  --cor-borda:      #2d9e42;
+  --sombra:         0 4px 24px rgba(0,0,0,0.7);
+  --raio:           8px;
 }
 
 body {
@@ -33,7 +33,7 @@ body {
 }
 
 /* ============================================================
-   PANTALLA DE INGRESO (IDENTIDAD)
+   PANTALLA DE INGRESO (FIREBASE AUTH)
    ============================================================ */
 #tela-login {
   position: fixed;
@@ -49,116 +49,140 @@ body {
   background: var(--cor-painel);
   border: 1px solid var(--cor-borda);
   border-radius: 16px;
-  padding: 44px 38px;
-  width: 380px;
-  box-shadow: var(--sombra), 0 0 50px rgba(45, 158, 66, 0.2);
+  padding: 38px 36px;
+  width: 390px;
+  box-shadow: var(--sombra), 0 0 50px rgba(45,158,66,0.2);
   text-align: center;
   animation: fadeInDown 0.5s ease;
 }
 
 @keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-25px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-25px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.login-logo {
-  font-size: 52px;
-  margin-bottom: 6px;
-}
+.login-logo { font-size: 46px; margin-bottom: 4px; }
+.login-titulo { font-size: 26px; font-weight: 700; color: var(--cor-secundaria); letter-spacing: 2px; }
+.login-subtitulo { font-size: 11px; color: var(--cor-texto-dim); margin-bottom: 22px; text-transform: uppercase; letter-spacing: 1px; }
 
-.login-titulo {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--cor-secundaria);
-  letter-spacing: 2px;
-}
-
-.login-subtitulo {
-  font-size: 12px;
-  color: var(--cor-texto-dim);
-  margin-bottom: 28px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.campo-grupo {
-  margin-bottom: 18px;
-  text-align: left;
-}
-
-.campo-grupo label {
-  display: block;
-  font-size: 11px;
-  color: var(--cor-texto-dim);
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-weight: 600;
-}
-
+.campo-grupo { margin-bottom: 14px; text-align: left; }
+.campo-grupo label { display: block; font-size: 11px; color: var(--cor-texto-dim); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
 .campo-grupo input {
   width: 100%;
-  padding: 13px 16px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(45, 158, 66, 0.4);
+  padding: 11px 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(45,158,66,0.4);
   border-radius: var(--raio);
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-
 .campo-grupo input:focus {
   border-color: var(--cor-secundaria);
-  box-shadow: 0 0 0 3px rgba(45, 158, 66, 0.25);
+  box-shadow: 0 0 0 3px rgba(45,158,66,0.25);
+}
+
+.botones-auth {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .btn-login {
-  width: 100%;
-  padding: 14px;
+  flex: 1;
+  padding: 12px;
   background: linear-gradient(135deg, var(--cor-primaria), var(--cor-secundaria));
   border: none;
   border-radius: var(--raio);
   color: white;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   transition: opacity 0.2s, transform 0.1s;
-  margin-top: 6px;
+}
+.btn-login:hover { opacity: 0.92; transform: translateY(-1px); }
+.btn-login:active { transform: translateY(0); }
+
+.btn-secundario {
+  flex: 1;
+  padding: 12px;
+  background: rgba(45,158,66,0.15);
+  border: 1px solid rgba(45,158,66,0.5);
+  border-radius: var(--raio);
+  color: #c8e6c9;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn-secundario:hover { background: rgba(45,158,66,0.3); color: #fff; transform: translateY(-1px); }
+
+/* Separador "O" */
+.separador-auth {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 16px 0;
+  color: var(--cor-texto-dim);
+  font-size: 11px;
+}
+.separador-auth::before,
+.separador-auth::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(45,158,66,0.25);
+}
+.separador-auth span {
+  padding: 0 10px;
+  font-weight: 600;
 }
 
-.btn-login:hover {
-  opacity: 0.92;
-  transform: translateY(-1px);
+/* Botón de Google */
+.btn-google {
+  width: 100%;
+  padding: 11px;
+  background: #ffffff;
+  border: none;
+  border-radius: var(--raio);
+  color: #3c4043;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
-
-.btn-login:active {
-  transform: translateY(0);
+.btn-google:hover {
+  background: #f8f9fa;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+.google-icono {
+  width: 18px;
+  height: 18px;
 }
 
 .erro-login {
   color: #ef5350;
-  font-size: 13px;
-  margin-top: 12px;
-  min-height: 20px;
+  font-size: 12px;
+  margin-top: 10px;
+  min-height: 18px;
   display: block;
 }
 
 .credenciais-hint {
-  margin-top: 18px;
-  padding: 12px 14px;
-  background: rgba(45, 158, 66, 0.1);
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: rgba(45,158,66,0.1);
   border-radius: var(--raio);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--cor-texto-dim);
   line-height: 1.5;
   text-align: left;
@@ -174,14 +198,8 @@ body {
   width: 100vw;
   height: 100vh;
 }
-
-#canvas-jogo.modo-construir {
-  cursor: crosshair;
-}
-
-#canvas-jogo.modo-demolir {
-  cursor: not-allowed;
-}
+#canvas-jogo.modo-construir { cursor: crosshair; }
+#canvas-jogo.modo-demolir { cursor: not-allowed; }
 
 /* ============================================================
    HUD — BARRA SUPERIOR
@@ -196,12 +214,10 @@ body {
 
 #barra-topo {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 58px;
   background: var(--cor-painel);
-  border-bottom: 1px solid rgba(45, 158, 66, 0.35);
+  border-bottom: 1px solid rgba(45,158,66,0.35);
   display: flex;
   align-items: center;
   padding: 0 16px;
@@ -226,7 +242,6 @@ body {
   color: var(--cor-texto-dim);
   white-space: nowrap;
 }
-
 .stat-item .valor {
   font-weight: 700;
   font-size: 14px;
@@ -234,21 +249,23 @@ body {
 }
 
 .user-badge {
-  background: rgba(45, 158, 66, 0.2);
-  border: 1px solid rgba(45, 158, 66, 0.4);
+  background: rgba(45,158,66,0.2);
+  border: 1px solid rgba(45,158,66,0.4);
   padding: 4px 10px;
   border-radius: 20px;
   color: #c8e6c9;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .oikos-badge {
-  background: rgba(251, 192, 45, 0.12);
-  border: 1px solid rgba(251, 192, 45, 0.4);
+  background: rgba(251,192,45,0.12);
+  border: 1px solid rgba(251,192,45,0.4);
   padding: 4px 12px;
   border-radius: 20px;
   color: var(--cor-oikos);
 }
-
 .oikos-badge .valor {
   color: var(--cor-oikos);
   font-size: 15px;
@@ -259,10 +276,10 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255,255,255,0.04);
   padding: 4px 8px;
   border-radius: var(--raio);
-  border: 1px solid rgba(45, 158, 66, 0.25);
+  border: 1px solid rgba(45,158,66,0.25);
 }
 
 .btn-accion-trabajo {
@@ -277,12 +294,10 @@ body {
   transition: transform 0.1s, opacity 0.2s;
   white-space: nowrap;
 }
-
 .btn-accion-trabajo:hover:not(:disabled) {
   opacity: 0.9;
   transform: translateY(-1px);
 }
-
 .btn-accion-trabajo:disabled {
   background: #37474f;
   color: #90a4ae;
@@ -293,11 +308,11 @@ body {
 #progreso-trabajo-contenedor {
   width: 100px;
   height: 22px;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0,0,0,0.4);
   border-radius: 4px;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(45, 158, 66, 0.3);
+  border: 1px solid rgba(45,158,66,0.3);
 }
 
 #barra-progreso-trabajo {
@@ -319,9 +334,7 @@ body {
   text-shadow: 0 1px 2px #000;
 }
 
-.separador-topo {
-  flex: 1;
-}
+.separador-topo { flex: 1; }
 
 .btn-topo {
   padding: 6px 14px;
@@ -329,48 +342,36 @@ body {
   font-size: 12px;
   cursor: pointer;
   pointer-events: all;
-  border: 1px solid rgba(45, 158, 66, 0.4);
-  background: rgba(45, 158, 66, 0.15);
+  border: 1px solid rgba(45,158,66,0.4);
+  background: rgba(45,158,66,0.15);
   color: var(--cor-texto-dim);
   transition: background 0.2s;
   white-space: nowrap;
 }
-
-.btn-topo:hover {
-  background: rgba(45, 158, 66, 0.3);
-  color: #fff;
-}
+.btn-topo:hover { background: rgba(45,158,66,0.3); color: #fff; }
 
 .btn-topo.salir {
-  background: rgba(239, 83, 80, 0.15);
-  border-color: rgba(239, 83, 80, 0.4);
+  background: rgba(239,83,80,0.15);
+  border-color: rgba(239,83,80,0.4);
   color: #ef9a9a;
 }
-
-.btn-topo.salir:hover {
-  background: rgba(239, 83, 80, 0.3);
-  color: #fff;
-}
+.btn-topo.salir:hover { background: rgba(239,83,80,0.3); color: #fff; }
 
 /* ============================================================
    PANEL DE HERRAMIENTAS (LATERAL IZQUIERDA)
    ============================================================ */
 #painel-ferramentas {
   position: absolute;
-  top: 68px;
-  left: 10px;
+  top: 68px; left: 10px;
   width: 78px;
   max-height: calc(100vh - 84px);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow-y: auto; overflow-x: hidden;
   background: var(--cor-painel);
-  border: 1px solid rgba(45, 158, 66, 0.3);
+  border: 1px solid rgba(45,158,66,0.3);
   border-radius: 12px;
   padding: 8px 6px;
   pointer-events: all;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: flex; flex-direction: column; gap: 4px;
   box-shadow: var(--sombra);
   scrollbar-width: thin;
   scrollbar-color: #2d9e42 transparent;
@@ -383,26 +384,18 @@ body {
   letter-spacing: 0.8px;
   text-align: center;
   padding: 4px 0 2px;
-  border-top: 1px solid rgba(45, 158, 66, 0.2);
+  border-top: 1px solid rgba(45,158,66,0.2);
   margin-top: 2px;
 }
-
-.sec-label:first-child {
-  border-top: none;
-  margin-top: 0;
-}
+.sec-label:first-child { border-top: none; margin-top: 0; }
 
 .btn-ferramenta {
-  width: 66px;
-  height: 50px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(45, 158, 66, 0.25);
+  width: 66px; height: 50px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(45,158,66,0.25);
   border-radius: 8px;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 1px;
   transition: background 0.15s, border-color 0.15s;
   pointer-events: all;
@@ -411,25 +404,18 @@ body {
   text-align: center;
   line-height: 1.1;
 }
-
-.btn-ferramenta .icone {
-  font-size: 18px;
-  line-height: 1;
-}
-
+.btn-ferramenta .icone { font-size: 18px; line-height: 1; }
 .btn-ferramenta:hover {
-  background: rgba(45, 158, 66, 0.2);
+  background: rgba(45,158,66,0.2);
   border-color: var(--cor-secundaria);
   color: var(--cor-texto);
 }
-
 .btn-ferramenta.ativo {
-  background: rgba(45, 158, 66, 0.35);
+  background: rgba(45,158,66,0.35);
   border-color: var(--cor-secundaria);
   color: white;
-  box-shadow: 0 0 10px rgba(45, 158, 66, 0.4);
+  box-shadow: 0 0 10px rgba(45,158,66,0.4);
 }
-
 .btn-custo {
   font-size: 8px;
   color: var(--cor-oikos);
@@ -439,52 +425,43 @@ body {
 /* Indicador de Rotación */
 #indicador-rotacao {
   position: absolute;
-  top: 68px;
-  left: 96px;
+  top: 68px; left: 96px;
   background: var(--cor-painel);
-  border: 1px solid rgba(45, 158, 66, 0.3);
+  border: 1px solid rgba(45,158,66,0.3);
   border-radius: 8px;
   padding: 6px 12px;
   pointer-events: none;
   font-size: 11px;
   color: var(--cor-texto-dim);
-  display: none;
-  align-items: center;
-  gap: 6px;
+  display: none; align-items: center; gap: 6px;
   box-shadow: var(--sombra);
 }
-
-#indicador-rotacao.visivel {
-  display: flex;
-}
+#indicador-rotacao.visivel { display: flex; }
 
 /* ============================================================
    PANEL DE INFORMACIÓN Y ALQUILER (DERECHA)
    ============================================================ */
 #painel-info {
   position: absolute;
-  top: 68px;
-  right: 10px;
+  top: 68px; right: 10px;
   width: 230px;
   background: var(--cor-painel);
-  border: 1px solid rgba(45, 158, 66, 0.3);
+  border: 1px solid rgba(45,158,66,0.3);
   border-radius: 12px;
   padding: 14px;
   pointer-events: all;
   box-shadow: var(--sombra);
   font-size: 12px;
 }
-
 #painel-info h3 {
   color: var(--cor-secundaria);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 8px;
-  border-bottom: 1px solid rgba(45, 158, 66, 0.2);
+  border-bottom: 1px solid rgba(45,158,66,0.2);
   padding-bottom: 6px;
 }
-
 #conteudo-info {
   color: var(--cor-texto-dim);
   line-height: 1.6;
@@ -502,15 +479,12 @@ body {
   cursor: pointer;
   transition: opacity 0.2s;
 }
-
-.btn-alquiler:hover {
-  opacity: 0.9;
-}
+.btn-alquiler:hover { opacity: 0.9; }
 
 .btn-desalojo {
   width: 100%;
   padding: 10px;
-  background: rgba(239, 83, 80, 0.2);
+  background: rgba(239,83,80,0.2);
   border: 1px solid #ef5350;
   border-radius: 6px;
   color: #ef9a9a;
@@ -519,21 +493,17 @@ body {
   cursor: pointer;
   transition: background 0.2s;
 }
-
-.btn-desalojo:hover {
-  background: rgba(239, 83, 80, 0.35);
-}
+.btn-desalojo:hover { background: rgba(239,83,80,0.35); }
 
 /* ============================================================
    LISTA DESPLEGABLE DE CIUDADANOS ONLINE
    ============================================================ */
 #panel-ciudadanos {
   position: absolute;
-  top: 68px;
-  right: 250px;
+  top: 68px; right: 250px;
   width: 210px;
   background: var(--cor-painel);
-  border: 1px solid rgba(45, 158, 66, 0.3);
+  border: 1px solid rgba(45,158,66,0.3);
   border-radius: 12px;
   padding: 12px;
   pointer-events: all;
@@ -542,17 +512,15 @@ body {
   max-height: 280px;
   overflow-y: auto;
 }
-
 #panel-ciudadanos h4 {
   font-size: 11px;
   color: var(--cor-secundaria);
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 8px;
-  border-bottom: 1px solid rgba(45, 158, 66, 0.2);
+  border-bottom: 1px solid rgba(45,158,66,0.2);
   padding-bottom: 4px;
 }
-
 .ciudadano-item {
   display: flex;
   justify-content: space-between;
@@ -560,33 +528,24 @@ body {
   font-size: 11px;
   padding: 4px 0;
   color: var(--cor-texto-dim);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-
-.ciudadano-item strong {
-  color: #fff;
-}
-
-.ciudadano-item .oikos-num {
-  color: var(--cor-oikos);
-  font-weight: 600;
-}
+.ciudadano-item strong { color: #fff; }
+.ciudadano-item .oikos-num { color: var(--cor-oikos); font-weight: 600; }
 
 /* ============================================================
    MINI-MAPA & CONTROLES INFERIORES
    ============================================================ */
 #container-minimapa {
   position: absolute;
-  bottom: 54px;
-  left: 10px;
+  bottom: 54px; left: 10px;
   background: var(--cor-painel);
-  border: 1px solid rgba(45, 158, 66, 0.4);
+  border: 1px solid rgba(45,158,66,0.4);
   border-radius: 10px;
   padding: 6px;
   pointer-events: none;
   box-shadow: var(--sombra);
 }
-
 #container-minimapa h4 {
   font-size: 9px;
   color: var(--cor-texto-dim);
@@ -595,39 +554,25 @@ body {
   text-align: center;
   margin-bottom: 4px;
 }
-
-#mini-mapa {
-  display: block;
-  border-radius: 4px;
-}
+#mini-mapa { display: block; border-radius: 4px; }
 
 #painel-controles {
   position: absolute;
-  bottom: 10px;
-  left: 50%;
+  bottom: 10px; left: 50%;
   transform: translateX(-50%);
   background: var(--cor-painel);
-  border: 1px solid rgba(45, 158, 66, 0.3);
+  border: 1px solid rgba(45,158,66,0.3);
   border-radius: 10px;
   padding: 6px 14px;
   pointer-events: none;
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  font-size: 10px;
-  color: var(--cor-texto-dim);
+  display: flex; gap: 14px; align-items: center;
+  font-size: 10px; color: var(--cor-texto-dim);
   box-shadow: var(--sombra);
 }
-
-.controle-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
+.controle-item { display: flex; align-items: center; gap: 4px; }
 kbd {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
   border-radius: 3px;
   padding: 1px 5px;
   font-size: 9px;
@@ -639,10 +584,9 @@ kbd {
    ============================================================ */
 #notificacao {
   position: absolute;
-  bottom: 56px;
-  left: 50%;
+  bottom: 56px; left: 50%;
   transform: translateX(-50%);
-  background: rgba(20, 50, 25, 0.95);
+  background: rgba(20,50,25,0.95);
   border: 1px solid #2d9e42;
   color: white;
   padding: 8px 22px;
@@ -653,9 +597,6 @@ kbd {
   transition: opacity 0.3s;
   pointer-events: none;
   white-space: nowrap;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
 }
-
-#notificacao.visivel {
-  opacity: 1;
-}
+#notificacao.visivel { opacity: 1; }
