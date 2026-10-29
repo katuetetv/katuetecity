@@ -1,0 +1,24 @@
+{
+  "name": "katuetecity",
+  "version": "2.0.0",
+  "description": "Juego 3D multijugador en tiempo real de construcción de ciudades y economía Oikos",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "threejs",
+    "socketio",
+    "multiplayer",
+    "citybuilder",
+    "webgl",
+    "nodejs"
+  ],
+  "author": "KatueteCity Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}
+

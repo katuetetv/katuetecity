@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KatueteCity — La Ciudad de la Integración</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       PANTALLA DE INGRESO / GESTIÓN DE IDENTIDAD
+       ============================================================ -->
+  <div id="tela-login">
+    <div class="login-container">
+      <div class="login-logo">🏙️</div>
+      <h1 class="login-titulo">KatueteCity</h1>
+      <p class="login-subtitulo">La Ciudad de la Integración</p>
+
+      <form id="form-login" autocomplete="off">
+        <div class="campo-grupo">
+          <label for="campo-nombre-jugador">Nombre del Ciudadano</label>
+          <input 
+            type="text" 
+            id="campo-nombre-jugador" 
+            placeholder="Ej: Carlos_Py, Mateo99" 
+            maxlength="18" 
+            required 
+            autofocus 
+          />
+        </div>
+        <button type="submit" class="btn-login" id="btn-entrar">Ingresar a la Ciudad</button>
+        <span class="erro-login" id="msg-erro"></span>
+      </form>
+
+      <div class="credenciais-hint">
+        🪙 <strong>Economía en Oikos</strong><br/>
+        Cada nuevo ciudadano recibe <strong>1,000 Oikos</strong> de capital inicial.<br/>
+        ¡Trabaja en la ciudad, alquila tu vivienda y construye libremente en KatueteCity!
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       CANVAS 3D (Three.js)
+       ============================================================ -->
+  <canvas id="canvas-jogo"></canvas>
+
+  <!-- ============================================================
+       HUD — INTERFAZ EN TIEMPO REAL
+       ============================================================ -->
+  <div id="hud">
+
+    <!-- Barra Superior -->
+    <div id="barra-topo">
+      <div id="titulo-jogo">🏙️ KatueteCity</div>
+
+      <div class="stat-item user-badge">
+        👤 <strong id="stat-jugador-nombre">Ciudadano</strong>
+      </div>
+
+      <div class="stat-item oikos-badge">
+        🟡 Saldo: <span class="valor" id="stat-oikos-saldo">1,000</span> <small>Oikos</small>
+      </div>
+
+      <!-- Módulo de Trabajo y Salarios -->
+      <div class="modulo-empleo">
+        <button id="btn-trabajar" class="btn-accion-trabajo" title="Cumple un turno de trabajo para ganar 350 Oikos">
+          💼 Trabajar (+350 Oikos)
+        </button>
+        <div id="progreso-trabajo-contenedor">
+          <div id="barra-progreso-trabajo"></div>
+          <span id="texto-progreso-trabajo">Listo para turno</span>
+        </div>
+      </div>
+
+      <div class="stat-item">
+        🟢 <span class="valor" id="stat-jugadores-online">1</span> en línea
+      </div>
+
+      <div class="separador-topo"></div>
+
+      <button id="btn-guardar-local" class="btn-topo" title="Guarda la ciudad en tu navegador">💾 Guardar</button>
+      <button id="btn-toggle-ciudadanos" class="btn-topo">👥 Ciudadanos</button>
+      <button id="btn-desconectar" class="btn-topo salir">⬅ Salir</button>
+    </div>
+
+    <!-- Indicador de Rotación de Edificios -->
+    <div id="indicador-rotacao">
+      🔄 Rotación: <strong id="valor-rotacao">0°</strong> &nbsp;<kbd>R</kbd> para girar
+    </div>
+
+    <!-- Panel de Herramientas de Construcción (Izquierda) -->
+    <div id="painel-ferramentas">
+      <div class="sec-label">Puntero</div>
+      <button class="btn-ferramenta ativo" data-ferramenta="ponteiro" title="Seleccionar y Ver Viviendas">
+        <span class="icone">🖱️</span><span>Ver / Info</span>
+      </button>
+      <button class="btn-ferramenta" data-ferramenta="demolir" title="Demoler Construcción">
+        <span class="icone">💥</span><span>Demoler</span>
+      </button>
+
+      <div class="sec-label">Vialidad</div>
+      <button class="btn-ferramenta" data-ferramenta="estrada" title="Arrastra para trazar calles">
+        <span class="icone">🛣️</span><span>Calle</span>
+        <span class="btn-custo">Gratis</span>
+      </button>
+
+      <div class="sec-label">Viviendas</div>
+      <button class="btn-ferramenta" data-ferramenta="casa" title="Casa Familiar — Alquiler disponible">
+        <span class="icone">🏠</span><span>Casa</span>
+        <span class="btn-custo">400 Ø</span>
+      </button>
+      <button class="btn-ferramenta" data-ferramenta="sobrado" title="Sobrado de 2 Plantas">
+        <span class="icone">🏡</span><span>Sobrado</span>
+        <span class="btn-custo">900 Ø</span>
+      </button>
+      <button class="btn-ferramenta" data-ferramenta="predio" title="Edificio Departamental">
+        <span class="icone">🏢</span><span>Edificio</span>
+        <span class="btn-custo">2.2k Ø</span>
+      </button>
+
+      <div class="sec-label">Comercios</div>
+      <button class="btn-ferramenta" data-ferramenta="loja" title="Tienda Comercial">
+        <span class="icone">🏪</span><span>Tienda</span>
+        <span class="btn-custo">1.1k Ø</span>
+      </button>
+      <button class="btn-ferramenta" data-ferramenta="posto" title="Estación de Servicios">
+        <span class="icone">⛽</span><span>Estación</span>
+        <span class="btn-custo">1.8k Ø</span>
+      </button>
+
+      <div class="sec-label">Servicios</div>
+      <button class="btn-ferramenta" data-ferramenta="parque" title="Parque Ecológico">
+        <span class="icone">🌳</span><span>Parque</span>
+        <span class="btn-custo">600 Ø</span>
+      </button>
+      <button class="btn-ferramenta" data-ferramenta="usina" title="Usina Eléctrica Municipal">
+        <span class="icone">⚡</span><span>Usina</span>
+        <span class="btn-custo">2.8k Ø</span>
+      </button>
+      <button class="btn-ferramenta" data-ferramenta="caixaDAgua" title="Tanque de Agua Potable">
+        <span class="icone">💧</span><span>Agua</span>
+        <span class="btn-custo">2.0k Ø</span>
+      </button>
+    </div>
+
+    <!-- Panel de Información & Sistema de Alquiler (Derecha) -->
+    <div id="painel-info">
+      <h3>📋 Registro Inmobiliario</h3>
+      <div id="conteudo-info">
+        Haz clic en una vivienda para consultar su estado o alquilarla.<br/><br/>
+        Cada turno de trabajo te otorga <strong>350 Oikos</strong> para financiar tu estadía en KatueteCity.
+      </div>
+      <div id="zona-acciones-inmueble" style="margin-top: 12px; display: none;">
+        <button id="btn-alquilar-casa" class="btn-alquiler">🔑 Alquilar Vivienda (150 Oikos)</button>
+        <button id="btn-desalojar-casa" class="btn-desalojo" style="display: none;">🚪 Entregar Llaves</button>
+      </div>
+    </div>
+
+    <!-- Lista Desplegable de Ciudadanos -->
+    <div id="panel-ciudadanos">
+      <h4>👥 Ciudadanos en KatueteCity</h4>
+      <div id="lista-usuarios-conectados"></div>
+    </div>
+
+    <!-- Mini-Mapa en Tiempo Real -->
+    <div id="container-minimapa">
+      <h4>🗺️ Plano Urbano</h4>
+      <canvas id="mini-mapa" width="120" height="120"></canvas>
+    </div>
+
+    <!-- Barra de Controles Inferior -->
+    <div id="painel-controles">
+      <div class="controle-item"><kbd>Clic izq.</kbd> Construir / Info</div>
+      <div class="controle-item"><kbd>Arrastrar izq.</kbd> Trazar calles / Girar cámara</div>
+      <div class="controle-item"><kbd>Clic der.</kbd> Mover cámara (Pan)</div>
+      <div class="controle-item"><kbd>R</kbd> Girar Edificio</div>
+      <div class="controle-item"><kbd>Del</kbd> Demoler</div>
+      <div class="controle-item"><kbd>Esc</kbd> Modo Puntero</div>
+    </div>
+
+    <!-- Notificación Global Flotante (Toast) -->
+    <div id="notificacao"></div>
+
+  </div><!-- fin #hud -->
+
+  <!-- ============================================================
+       BIBLIOTECAS VÍA CDN (100% compatibles con GitHub Pages)
+       ============================================================ -->
+  <!-- Three.js r128 -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <!-- OrbitControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Socket.io cliente CDN (para modo multijugador si hay backend conectado) -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <!-- Script Principal del Cliente -->
+  <script src="main.js"></script>
+
+</body>
+</html>
