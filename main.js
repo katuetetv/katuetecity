@@ -6,14 +6,14 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut, 
-  onAuthStateChanged 
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 /* ============================================================
@@ -42,6 +42,7 @@ const jugadorLocal = {
   uid: null,
   nombre: 'Ciudadano',
   email: '',
+  esAdmin: false,
   oikos: 1000,
   trabajando: false,
   tiempoTurnoRestante: 0,
@@ -49,7 +50,7 @@ const jugadorLocal = {
   casasAlquiladas: []
 };
 
-const TAMANHO_GRADE  = 40;
+const TAMANHO_GRADE = 40;
 const TAMANHO_CELULA = 4;
 const COSTO_ALQUILER_CICLO = 150;
 const SALARIO_TURNO_OIKOS = 350;
@@ -154,12 +155,62 @@ function tocarSonido(tipo) {
       osc.start(t);
       osc.stop(t + 0.2);
     }
-  } catch (e) {}
+  } catch (e) { }
 }
 
 /* ============================================================
-   4. EVENTOS DE AUTENTICACIÓN FIREBASE
+   4. EVENTOS DE AUTENTICACIÓN FIREBASE Y ADMIN
    ============================================================ */
+const tabCiudadano = document.getElementById('tab-rol-ciudadano');
+const tabAdmin = document.getElementById('tab-rol-admin');
+const formLoginCiudadano = document.getElementById('form-login');
+const formLoginAdmin = document.getElementById('form-login-admin');
+
+// Alternador de pestañas
+if (tabCiudadano && tabAdmin) {
+  tabCiudadano.addEventListener('click', () => {
+    tabCiudadano.classList.add('activa');
+    tabAdmin.classList.remove('activa');
+    formLoginCiudadano.style.display = 'block';
+    formLoginAdmin.style.display = 'none';
+  });
+
+  tabAdmin.addEventListener('click', () => {
+    tabAdmin.classList.add('activa');
+    tabCiudadano.classList.remove('activa');
+    formLoginCiudadano.style.display = 'none';
+    formLoginAdmin.style.display = 'block';
+    document.getElementById('campo-admin-usuario').focus();
+  });
+}
+
+// 4.0 Formulario de Acceso de Administrador
+formLoginAdmin.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const usuario = document.getElementById('campo-admin-usuario').value.trim().toLowerCase();
+  const clave = document.getElementById('campo-admin-clave').value;
+  const msgAdmin = document.getElementById('msg-erro-admin');
+
+  // Credenciales Oficiales de Alcaldía
+  const esCorreoAdmin = (usuario === 'katuetecity@katuete.com' || usuario === 'admin');
+  const esClaveCorrecta = (clave === 'R4nUbAl48N6a' || clave === 'R4nUbAl48N6a');
+
+  if (esCorreoAdmin && esClaveCorrecta) {
+    msgAdmin.textContent = '';
+    obtenerAudioContext();
+    iniciarSesionComoAdmin(usuario);
+  } else {
+    // Si intenta ingresar por Firebase con estas credenciales
+    try {
+      obtenerAudioContext();
+      await signInWithEmailAndPassword(auth, usuario, clave);
+    } catch (err) {
+      tocarSonido('error');
+      msgAdmin.textContent = '⚠️ Correo o contraseña de Administrador incorrectos.';
+    }
+  }
+});
+
 const formLogin = document.getElementById('form-login');
 const campoEmail = document.getElementById('campo-email');
 const campoSenha = document.getElementById('campo-senha');
@@ -178,7 +229,7 @@ formLogin.addEventListener('submit', async (e) => {
     obtenerAudioContext();
     await signInWithEmailAndPassword(auth, email, password);
   } catch (error) {
-    mostrarErrorAuth(error.code);
+    mostrarErrorAuth(error.code, error.message);
   }
 });
 
@@ -198,7 +249,7 @@ btnRegistrarse.addEventListener('click', async () => {
     await createUserWithEmailAndPassword(auth, email, password);
     mostrarNotificacion('🎉 ¡Cuenta creada con éxito en KatueteCity!');
   } catch (error) {
-    mostrarErrorAuth(error.code);
+    mostrarErrorAuth(error.code, error.message);
   }
 });
 
@@ -209,7 +260,7 @@ btnGoogle.addEventListener('click', async () => {
     obtenerAudioContext();
     await signInWithPopup(auth, googleProvider);
   } catch (error) {
-    mostrarErrorAuth(error.code);
+    mostrarErrorAuth(error.code, error.message);
   }
 });
 
@@ -227,8 +278,15 @@ document.getElementById('btn-desconectar').addEventListener('click', async () =>
 onAuthStateChanged(auth, (user) => {
   if (user) {
     usuarioFirebase = user;
-    const nombreExtraido = user.displayName || user.email.split('@')[0];
-    iniciarSesionCiudadano(user.uid, nombreExtraido, user.email);
+    const emailNormalizado = (user.email || '').toLowerCase();
+
+    // Si el correo autenticado es el de Alcaldía, entra directamente como Administrador
+    if (emailNormalizado === 'katuetecity@katuete.com') {
+      iniciarSesionComoAdmin(user.email);
+    } else {
+      const nombreExtraido = user.displayName || user.email.split('@')[0];
+      iniciarSesionCiudadano(user.uid, nombreExtraido, user.email);
+    }
   } else {
     document.getElementById('tela-login').style.display = 'flex';
     document.getElementById('hud').style.display = 'none';
@@ -237,9 +295,17 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-function mostrarErrorAuth(codigo) {
+function mostrarErrorAuth(codigo, mensajeOriginal) {
   tocarSonido('error');
+  console.error('Error Firebase:', codigo, mensajeOriginal);
+
   switch (codigo) {
+    case 'auth/unauthorized-domain':
+      msgErro.innerHTML = `⚠️ <strong>Dominio no autorizado:</strong> Agrega tu dominio <code>${window.location.hostname}</code> en Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains.`;
+      break;
+    case 'auth/operation-not-allowed':
+      msgErro.innerHTML = '⚠️ <strong>Método inhabilitado:</strong> Activa "Correo/Contraseña" en Firebase Console &gt; Authentication &gt; Sign-in method.';
+      break;
     case 'auth/invalid-email':
       msgErro.textContent = 'El formato del correo electrónico no es válido.';
       break;
@@ -257,10 +323,25 @@ function mostrarErrorAuth(codigo) {
     case 'auth/popup-closed-by-user':
       msgErro.textContent = 'Inicio de sesión con Google cancelado.';
       break;
+    case 'auth/network-request-failed':
+      msgErro.textContent = 'Error de conexión. Verifica tu conexión a internet o adblocker.';
+      break;
     default:
-      msgErro.textContent = 'Error de autenticación. Verifica tus datos.';
+      msgErro.textContent = `Error (${codigo || 'desconocido'}). ${mensajeOriginal || 'Verifica la consola.'}`;
       break;
   }
+}
+
+// 4.6 Botón de Ingreso como Invitado (Modo Autónomo de Respaldo)
+const btnInvitado = document.getElementById('btn-invitado');
+if (btnInvitado) {
+  btnInvitado.addEventListener('click', () => {
+    const emailInvitado = campoEmail.value.trim();
+    const nombreInvitado = emailInvitado ? emailInvitado.split('@')[0] : `Invitado_${Math.floor(Math.random() * 900 + 100)}`;
+    obtenerAudioContext();
+    iniciarSesionCiudadano(`invitado_${Date.now()}`, nombreInvitado, 'invitado@katuetecity.local');
+    mostrarNotificacion(`👋 Has ingresado como ${nombreInvitado} (Modo Local)`);
+  });
 }
 
 /* ============================================================
@@ -270,6 +351,7 @@ function iniciarSesionCiudadano(uid, nombre, email) {
   jugadorLocal.uid = uid;
   jugadorLocal.nombre = nombre;
   jugadorLocal.email = email;
+  jugadorLocal.esAdmin = false;
 
   document.getElementById('tela-login').style.display = 'none';
   document.getElementById('canvas-jogo').style.display = 'block';
@@ -303,6 +385,35 @@ function iniciarSesionCiudadano(uid, nombre, email) {
   desenharMiniMapa();
   tocarSonido('monedas');
   mostrarNotificacion(`🎉 ¡Bienvenido a KatueteCity, ${jugadorLocal.nombre}!`);
+}
+
+function iniciarSesionComoAdmin(usuario) {
+  jugadorLocal.uid = 'admin_master';
+  jugadorLocal.nombre = usuario.toUpperCase();
+  jugadorLocal.email = 'admin@katuetecity.gob';
+  jugadorLocal.esAdmin = true;
+  jugadorLocal.oikos = 9999999; // Fondos casi ilimitados de alcaldía
+
+  document.getElementById('tela-login').style.display = 'none';
+  document.getElementById('canvas-jogo').style.display = 'block';
+  document.getElementById('hud').style.display = 'block';
+
+  recuperarCiudadGuardada();
+  actualizarHUD();
+
+  if (!renderizador) {
+    iniciarMotor3D();
+  }
+
+  const centro = Math.floor(TAMANHO_GRADE / 2);
+  if (estado.grade[centro][centro] === null) {
+    generarCiudadBase();
+  }
+
+  iniciarCicloAlquilerLocal();
+  desenharMiniMapa();
+  tocarSonido('monedas');
+  mostrarNotificacion(`👑 ¡Sesión iniciada como ALCALDE MUNICIPAL! (Modo Dios Activo)`);
 }
 
 function generarCiudadBase() {
@@ -369,9 +480,9 @@ function iniciarMotor3D() {
   controles.maxDistance = 220;
   controles.maxPolarAngle = Math.PI / 2.15;
   controles.mouseButtons = {
-    LEFT:   THREE.MOUSE.ROTATE,
+    LEFT: THREE.MOUSE.ROTATE,
     MIDDLE: THREE.MOUSE.DOLLY,
-    RIGHT:  THREE.MOUSE.PAN
+    RIGHT: THREE.MOUSE.PAN
   };
 
   configurarEventosInteraccion();
@@ -657,14 +768,14 @@ function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 
   const { x, z } = gradeParaMundo(gx, gz);
 
   switch (tipo) {
-    case 'estrada':    mesh = criarEstradaMesh(gx, gz); break;
-    case 'casa':       mesh = criarCasa(rotRad); break;
-    case 'sobrado':    mesh = criarSobrado(rotRad); break;
-    case 'predio':     mesh = criarPredio(rotRad); break;
-    case 'loja':       mesh = criarLoja(rotRad); break;
-    case 'posto':      mesh = criarPosto(rotRad); break;
-    case 'parque':     mesh = criarParque(); break;
-    case 'usina':      mesh = criarUsina(rotRad); break;
+    case 'estrada': mesh = criarEstradaMesh(gx, gz); break;
+    case 'casa': mesh = criarCasa(rotRad); break;
+    case 'sobrado': mesh = criarSobrado(rotRad); break;
+    case 'predio': mesh = criarPredio(rotRad); break;
+    case 'loja': mesh = criarLoja(rotRad); break;
+    case 'posto': mesh = criarPosto(rotRad); break;
+    case 'parque': mesh = criarParque(); break;
+    case 'usina': mesh = criarUsina(rotRad); break;
     case 'caixaDAgua': mesh = criarCaixaDAgua(); break;
     default: return;
   }
@@ -705,8 +816,8 @@ function configurarEventosInteraccion() {
 
   function actualizarCoordenadasMouse(e) {
     const rect = canvas.getBoundingClientRect();
-    mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
-    mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
   function obtenerInterseccionChao() {
@@ -852,8 +963,8 @@ function procesarClicEnGrilla(gx, gz) {
     desenharMiniMapa();
     mostrarNotificacion('💥 Edificio demolido.');
   } else {
-    const costo = COSTOS_CONSTRUCCION[ferr] || 0;
-    if (jugadorLocal.oikos < costo) {
+    const costo = jugadorLocal.esAdmin ? 0 : (COSTOS_CONSTRUCCION[ferr] || 0);
+    if (!jugadorLocal.esAdmin && jugadorLocal.oikos < costo) {
       mostrarNotificacion(`❌ Saldo insuficiente (${costo} Oikos necesarios).`);
       tocarSonido('error');
       return;
@@ -864,8 +975,10 @@ function procesarClicEnGrilla(gx, gz) {
       return;
     }
 
-    jugadorLocal.oikos -= costo;
-    instanciarObjetoLocal(ferr, gx, gz, estado.rotacaoAtual, null, jugadorLocal.nombre);
+    if (!jugadorLocal.esAdmin) {
+      jugadorLocal.oikos -= costo;
+    }
+    instanciarObjetoLocal(ferr, gx, gz, estado.rotacaoAtual, null, jugadorLocal.esAdmin ? 'Municipio (Alcalde)' : jugadorLocal.nombre);
     actualizarHUD();
     tocarSonido('construir');
     desenharMiniMapa();
@@ -1133,9 +1246,98 @@ function limparPreviewLinhaEstrada() {
 }
 
 function actualizarHUD() {
-  document.getElementById('stat-jugador-nombre').textContent = jugadorLocal.nombre;
-  document.getElementById('stat-oikos-saldo').textContent = Number(jugadorLocal.oikos).toLocaleString('es-PY');
+  const badgeNombre = document.getElementById('stat-jugador-nombre');
+  const badgeUsuarioContenedor = badgeNombre.closest('.user-badge');
+  const saldoTexto = document.getElementById('stat-oikos-saldo');
+  const btnAdmin = document.getElementById('btn-panel-admin');
+
+  if (jugadorLocal.esAdmin) {
+    badgeNombre.textContent = `👑 Alcalde: ${jugadorLocal.nombre}`;
+    badgeUsuarioContenedor?.classList.add('admin');
+    saldoTexto.textContent = '∞';
+    if (btnAdmin) btnAdmin.style.display = 'inline-block';
+  } else {
+    badgeNombre.textContent = jugadorLocal.nombre;
+    badgeUsuarioContenedor?.classList.remove('admin');
+    saldoTexto.textContent = Number(jugadorLocal.oikos).toLocaleString('es-PY');
+    if (btnAdmin) btnAdmin.style.display = 'none';
+  }
 }
+
+/* ============================================================
+   13. PANEL DE ADMINISTRACIÓN (ALCALDÍA MUNICIPAL)
+   ============================================================ */
+const modalAdmin = document.getElementById('modal-admin');
+const btnAbrirAdmin = document.getElementById('btn-panel-admin');
+const btnCerrarAdmin = document.getElementById('admin-cerrar-modal');
+
+if (btnAbrirAdmin && modalAdmin) {
+  btnAbrirAdmin.addEventListener('click', () => {
+    modalAdmin.style.display = 'flex';
+  });
+}
+
+if (btnCerrarAdmin && modalAdmin) {
+  btnCerrarAdmin.addEventListener('click', () => {
+    modalAdmin.style.display = 'none';
+  });
+}
+
+// Acciones Administrativas
+document.getElementById('admin-dar-oikos')?.addEventListener('click', () => {
+  jugadorLocal.oikos += 100000;
+  actualizarHUD();
+  tocarSonido('monedas');
+  mostrarNotificacion('💰 +100,000 Oikos inyectados al tesoro municipal.');
+});
+
+document.getElementById('admin-limpiar-ciudad')?.addEventListener('click', () => {
+  if (confirm('¿Estás seguro de demoler toda la ciudad y dejar el terreno limpio?')) {
+    for (let z = 0; z < TAMANHO_GRADE; z++) {
+      for (let x = 0; x < TAMANHO_GRADE; x++) {
+        eliminarObjetoLocal(x, z);
+      }
+    }
+    tocarSonido('demolir');
+    desenharMiniMapa();
+    guardarCiudadEnStorage(false);
+    modalAdmin.style.display = 'none';
+    mostrarNotificacion('🧹 Toda la ciudad ha sido demolida por decreto municipal.');
+  }
+});
+
+document.getElementById('admin-desalojar-todos')?.addEventListener('click', () => {
+  let liberadas = 0;
+  for (let z = 0; z < TAMANHO_GRADE; z++) {
+    for (let x = 0; x < TAMANHO_GRADE; x++) {
+      const c = estado.grade[z][x];
+      if (c && c.inquilino) {
+        c.inquilino = null;
+        liberadas++;
+      }
+    }
+  }
+  tocarSonido('monedas');
+  guardarCiudadEnStorage(false);
+  modalAdmin.style.display = 'none';
+  mostrarNotificacion(`🚪 Se han liberado ${liberadas} viviendas.`);
+});
+
+document.getElementById('admin-regenerar-base')?.addEventListener('click', () => {
+  if (confirm('¿Restaurar el trazado urbano modelo original de KatueteCity?')) {
+    for (let z = 0; z < TAMANHO_GRADE; z++) {
+      for (let x = 0; x < TAMANHO_GRADE; x++) {
+        eliminarObjetoLocal(x, z);
+      }
+    }
+    generarCiudadBase();
+    tocarSonido('construir');
+    desenharMiniMapa();
+    guardarCiudadEnStorage(false);
+    modalAdmin.style.display = 'none';
+    mostrarNotificacion('🏙️ Ciudad modelo original restaurada con éxito.');
+  }
+});
 
 function actualizarEstadoTrabajoUI() {
   const btn = document.getElementById('btn-trabajar');

@@ -14,6 +14,27 @@ El juego cuenta con un sistema de cuentas seguro y persistente gracias a **Fireb
 
 ---
 
+## 👑 Sistema de Roles: Administrador vs Ciudadano
+
+La pantalla de ingreso cuenta ahora con selector de roles:
+
+### 1. 👤 Modo Ciudadano (Jugador Normal)
+* Registro libre mediante **Firebase Authentication** (Correo/Contraseña, Google o Invitado).
+* Inicia con **1,000 Oikos**.
+* Debe trabajar cumpliendo turnos para ganar salarios y pagar alquileres.
+
+### 2. 👑 Modo Administrador (Alcalde Municipal)
+* Pestaña exclusiva **Administrador**.
+* Credenciales Oficiales de Alcaldía:
+  * **Correo:** `katuetecity@katuete.com`
+  * **Contraseña:** `juniorceo0905`
+* **Poderes de Alcalde:**
+  * **Oikos Ilimitados (`∞`)** y construcciones gratuitas a costo cero.
+  * Botón exclusivo **👑 Panel Admin** en el HUD.
+  * Opciones del panel: Inyectar +100.000 Oikos, Demoler toda la ciudad, Liberar todas las viviendas y Restaurar el trazado urbano inicial.
+
+---
+
 ## ⚙️ Pasos Finales en tu Consola de Firebase
 
 Para que el inicio de sesión funcione tanto en tu computadora (`localhost`) como en **GitHub Pages**:

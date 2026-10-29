@@ -17,6 +17,13 @@
       <h1 class="login-titulo">KatueteCity</h1>
       <p class="login-subtitulo">La Ciudad de la Integración</p>
 
+      <!-- Selector de Rol (Ciudadano vs Administrador) -->
+      <div class="tabs-rol">
+        <button type="button" class="tab-rol activa" id="tab-rol-ciudadano">👤 Ciudadano</button>
+        <button type="button" class="tab-rol" id="tab-rol-admin">👑 Administrador</button>
+      </div>
+
+      <!-- FORMULARIO CIUDADANO (Firebase / Google) -->
       <form id="form-login" autocomplete="on">
         <div class="campo-grupo">
           <label for="campo-email">Correo Electrónico</label>
@@ -59,7 +66,46 @@
           Continuar con Google
         </button>
 
+        <button type="button" class="btn-invitado" id="btn-invitado">
+          👤 Ingresar como Invitado (Sin Registro)
+        </button>
+
         <span class="erro-login" id="msg-erro"></span>
+      </form>
+
+      <!-- FORMULARIO ADMINISTRADOR -->
+      <form id="form-login-admin" style="display: none;" autocomplete="off">
+        <div class="campo-grupo">
+          <label for="campo-admin-usuario">Correo del Administrador</label>
+          <input 
+            type="email" 
+            id="campo-admin-usuario" 
+            placeholder="katuetecity@katuete.com" 
+            required 
+          />
+        </div>
+
+        <div class="campo-grupo">
+          <label for="campo-admin-clave">Clave Maestra de Acceso</label>
+          <input 
+            type="password" 
+            id="campo-admin-clave" 
+            placeholder="Clave de Alcaldía" 
+            required 
+          />
+        </div>
+
+        <button type="submit" class="btn-login-admin" id="btn-entrar-admin">
+          👑 Acceder como Alcalde / Admin
+        </button>
+
+        <span class="erro-login" id="msg-erro-admin"></span>
+
+        <div class="credenciais-hint">
+          🔑 <strong>Acceso Oficial de Alcaldía</strong><br/>
+          Correo: <strong>katuetecity@katuete.com</strong><br/>
+          <em>(Otorga Oikos ilimitados y panel de control municipal)</em>
+        </div>
       </form>
 
       <div class="credenciais-hint">
@@ -108,6 +154,7 @@
 
       <div class="separador-topo"></div>
 
+      <button id="btn-panel-admin" class="btn-topo admin-btn" style="display: none;" title="Opciones de Alcalde">👑 Panel Admin</button>
       <button id="btn-guardar-local" class="btn-topo" title="Guarda la ciudad en tu cuenta">💾 Guardar</button>
       <button id="btn-toggle-ciudadanos" class="btn-topo">👥 Ciudadanos</button>
       <button id="btn-desconectar" class="btn-topo salir">⬅ Cerrar Sesión</button>
@@ -210,6 +257,23 @@
 
     <!-- Notificación Global Flotante (Toast) -->
     <div id="notificacao"></div>
+
+    <!-- Panel de Administración Modal (Exclusivo Alcalde) -->
+    <div id="modal-admin" class="modal-flotante" style="display: none;">
+      <div class="modal-admin-contenido">
+        <h3>👑 Panel de Alcaldía Municipal</h3>
+        <p>Herramientas exclusivas de administración urbana</p>
+        
+        <div class="admin-acciones">
+          <button id="admin-dar-oikos" class="btn-admin-accion">💰 Inyectar +100.000 Oikos</button>
+          <button id="admin-limpiar-ciudad" class="btn-admin-accion peligro">🧹 Demoler Toda la Ciudad</button>
+          <button id="admin-desalojar-todos" class="btn-admin-accion">🚪 Liberar Todas las Viviendas</button>
+          <button id="admin-regenerar-base" class="btn-admin-accion">🏙️ Restaurar Ciudad Base</button>
+        </div>
+
+        <button id="admin-cerrar-modal" class="btn-secundario" style="width: 100%; margin-top: 14px;">Cerrar Panel</button>
+      </div>
+    </div>
 
   </div><!-- fin #hud -->
 
