@@ -9,250 +9,306 @@
 <body>
 
   <!-- ============================================================
-       PANTALLA DE AUTENTICACIÓN FIREBASE
+       CANVAS 3D (Carga el mapa de inmediato al abrir el sitio)
        ============================================================ -->
-  <div id="tela-login">
-    <div class="login-container">
-      <div class="login-logo">🏙️</div>
-      <h1 class="login-titulo">KatueteCity</h1>
-      <p class="login-subtitulo">La Ciudad de la Integración</p>
-
-      <!-- Selector de Rol (Ciudadano vs Administrador) -->
-      <div class="tabs-rol">
-        <button type="button" class="tab-rol activa" id="tab-rol-ciudadano">👤 Ciudadano</button>
-        <button type="button" class="tab-rol" id="tab-rol-admin">👑 Administrador</button>
-      </div>
-
-      <!-- FORMULARIO CIUDADANO (Firebase / Google) -->
-      <form id="form-login" autocomplete="on">
-        <div class="campo-grupo">
-          <label for="campo-email">Correo Electrónico</label>
-          <input 
-            type="email" 
-            id="campo-email" 
-            placeholder="ejemplo@correo.com" 
-            required 
-            autofocus 
-          />
-        </div>
-
-        <div class="campo-grupo">
-          <label for="campo-senha">Contraseña</label>
-          <input 
-            type="password" 
-            id="campo-senha" 
-            placeholder="Mínimo 6 caracteres" 
-            minlength="6"
-            required 
-          />
-        </div>
-
-        <div class="botones-auth">
-          <button type="submit" class="btn-login" id="btn-iniciar-sesion">Iniciar Sesión</button>
-          <button type="button" class="btn-secundario" id="btn-registrarse">Crear Cuenta</button>
-        </div>
-
-        <div class="separador-auth">
-          <span>O</span>
-        </div>
-
-        <button type="button" class="btn-google" id="btn-google">
-          <svg class="google-icono" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-          </svg>
-          Continuar con Google
-        </button>
-
-        <button type="button" class="btn-invitado" id="btn-invitado">
-          👤 Ingresar como Invitado (Sin Registro)
-        </button>
-
-        <span class="erro-login" id="msg-erro"></span>
-      </form>
-
-      <!-- FORMULARIO ADMINISTRADOR -->
-      <form id="form-login-admin" style="display: none;" autocomplete="off">
-        <div class="campo-grupo">
-          <label for="campo-admin-usuario">Correo del Administrador</label>
-          <input 
-            type="email" 
-            id="campo-admin-usuario" 
-            placeholder="katuetecity@katuete.com" 
-            required 
-          />
-        </div>
-
-        <div class="campo-grupo">
-          <label for="campo-admin-clave">Clave Maestra de Acceso</label>
-          <input 
-            type="password" 
-            id="campo-admin-clave" 
-            placeholder="Clave de Alcaldía" 
-            required 
-          />
-        </div>
-
-        <button type="submit" class="btn-login-admin" id="btn-entrar-admin">
-          👑 Acceder como Alcalde / Admin
-        </button>
-
-        <span class="erro-login" id="msg-erro-admin"></span>
-
-        <div class="credenciais-hint">
-          🔑 <strong>Acceso Oficial de Alcaldía</strong><br/>
-          Correo: <strong>katuetecity@katuete.com</strong><br/>
-          <em>(Otorga Oikos ilimitados y panel de control municipal)</em>
-        </div>
-      </form>
-
-      <div class="credenciais-hint">
-        🪙 <strong>Economía en Oikos con Firebase</strong><br/>
-        Tus Oikos y viviendas quedan vinculados de forma segura a tu cuenta de usuario.
-      </div>
-    </div>
-  </div>
+  <canvas id="canvas-jogo" style="display: block;"></canvas>
 
   <!-- ============================================================
-       CANVAS 3D (Three.js)
+       HUD — INTERFAZ LIMPIA CON MENÚ PRINCIPAL
        ============================================================ -->
-  <canvas id="canvas-jogo"></canvas>
+  <div id="hud" style="display: block;">
 
-  <!-- ============================================================
-       HUD — INTERFAZ EN TIEMPO REAL
-       ============================================================ -->
-  <div id="hud">
-
-    <!-- Barra Superior -->
+    <!-- Barra Superior Minimalista -->
     <div id="barra-topo">
       <div id="titulo-jogo">🏙️ KatueteCity</div>
 
-      <div class="stat-item user-badge">
-        👤 <strong id="stat-jugador-nombre">Ciudadano</strong>
+      <div class="stat-item user-badge" id="badge-usuario-contenedor">
+        👤 <strong id="stat-jugador-nombre">Visitante</strong>
       </div>
 
       <div class="stat-item oikos-badge">
-        🟡 Saldo: <span class="valor" id="stat-oikos-saldo">1,000</span> <small>Oikos</small>
+        🟡 <span class="valor" id="stat-oikos-saldo">1,000</span> <small>Oikos</small>
       </div>
 
-      <!-- Módulo de Trabajo y Salarios -->
-      <div class="modulo-empleo">
-        <button id="btn-trabajar" class="btn-accion-trabajo" title="Cumple un turno de trabajo para ganar 350 Oikos">
-          💼 Trabajar (+350 Oikos)
-        </button>
-        <div id="progreso-trabajo-contenedor">
-          <div id="barra-progreso-trabajo"></div>
-          <span id="texto-progreso-trabajo">Listo para turno</span>
-        </div>
-      </div>
-
-      <div class="stat-item">
+      <div class="stat-item" id="badge-online">
         🟢 <span class="valor" id="stat-jugadores-online">1</span> en línea
       </div>
 
       <div class="separador-topo"></div>
 
-      <button id="btn-panel-admin" class="btn-topo admin-btn" style="display: none;" title="Opciones de Alcalde">👑 Panel Admin</button>
-      <button id="btn-guardar-local" class="btn-topo" title="Guarda la ciudad en tu cuenta">💾 Guardar</button>
-      <button id="btn-toggle-ciudadanos" class="btn-topo">👥 Ciudadanos</button>
-      <button id="btn-desconectar" class="btn-topo salir">⬅ Cerrar Sesión</button>
-    </div>
-
-    <!-- Indicador de Rotación de Edificios -->
-    <div id="indicador-rotacao">
-      🔄 Rotación: <strong id="valor-rotacao">0°</strong> &nbsp;<kbd>R</kbd> para girar
-    </div>
-
-    <!-- Panel de Herramientas de Construcción (Izquierda) -->
-    <div id="painel-ferramentas">
-      <div class="sec-label">Puntero</div>
-      <button class="btn-ferramenta ativo" data-ferramenta="ponteiro" title="Seleccionar y Ver Viviendas">
-        <span class="icone">🖱️</span><span>Ver / Info</span>
-      </button>
-      <button class="btn-ferramenta" data-ferramenta="demolir" title="Demoler Construcción">
-        <span class="icone">💥</span><span>Demoler</span>
-      </button>
-
-      <div class="sec-label">Vialidad</div>
-      <button class="btn-ferramenta" data-ferramenta="estrada" title="Arrastra para trazar calles">
-        <span class="icone">🛣️</span><span>Calle</span>
-        <span class="btn-custo">Gratis</span>
-      </button>
-
-      <div class="sec-label">Viviendas</div>
-      <button class="btn-ferramenta" data-ferramenta="casa" title="Casa Familiar — Alquiler disponible">
-        <span class="icone">🏠</span><span>Casa</span>
-        <span class="btn-custo">400 Ø</span>
-      </button>
-      <button class="btn-ferramenta" data-ferramenta="sobrado" title="Sobrado de 2 Plantas">
-        <span class="icone">🏡</span><span>Sobrado</span>
-        <span class="btn-custo">900 Ø</span>
-      </button>
-      <button class="btn-ferramenta" data-ferramenta="predio" title="Edificio Departamental">
-        <span class="icone">🏢</span><span>Edificio</span>
-        <span class="btn-custo">2.2k Ø</span>
-      </button>
-
-      <div class="sec-label">Comercios</div>
-      <button class="btn-ferramenta" data-ferramenta="loja" title="Tienda Comercial">
-        <span class="icone">🏪</span><span>Tienda</span>
-        <span class="btn-custo">1.1k Ø</span>
-      </button>
-      <button class="btn-ferramenta" data-ferramenta="posto" title="Estación de Servicios">
-        <span class="icone">⛽</span><span>Estación</span>
-        <span class="btn-custo">1.8k Ø</span>
-      </button>
-
-      <div class="sec-label">Servicios</div>
-      <button class="btn-ferramenta" data-ferramenta="parque" title="Parque Ecológico">
-        <span class="icone">🌳</span><span>Parque</span>
-        <span class="btn-custo">600 Ø</span>
-      </button>
-      <button class="btn-ferramenta" data-ferramenta="usina" title="Usina Eléctrica Municipal">
-        <span class="icone">⚡</span><span>Usina</span>
-        <span class="btn-custo">2.8k Ø</span>
-      </button>
-      <button class="btn-ferramenta" data-ferramenta="caixaDAgua" title="Tanque de Agua Potable">
-        <span class="icone">💧</span><span>Agua</span>
-        <span class="btn-custo">2.0k Ø</span>
-      </button>
-    </div>
-
-    <!-- Panel de Información & Sistema de Alquiler (Derecha) -->
-    <div id="painel-info">
-      <h3>📋 Registro Inmobiliario</h3>
-      <div id="conteudo-info">
-        Haz clic en una vivienda para consultar su estado o alquilarla.<br/><br/>
-        Cada turno de trabajo te otorga <strong>350 Oikos</strong> para financiar tu estadía en KatueteCity.
+      <!-- Indicador de Rotación (solo visible al construir) -->
+      <div id="indicador-rotacao">
+        🔄 Rotación: <strong id="valor-rotacao">0°</strong> &nbsp;<kbd>R</kbd>
       </div>
-      <div id="zona-acciones-inmueble" style="margin-top: 12px; display: none;">
+
+      <!-- Botón para abrir el Login Minimalista -->
+      <button id="btn-abrir-login" class="btn-topo login-destaque">🔑 Cuenta / Ingresar</button>
+      <button id="btn-guardar-local" class="btn-topo" title="Guarda la ciudad en tu cuenta">💾 Guardar</button>
+      <button id="btn-desconectar" class="btn-topo salir" style="display: none;">⬅ Salir</button>
+    </div>
+
+    <!-- ============================================================
+         VENTANA DE LOGIN MINIMALISTA (SE ABRE AL PULSAR EL BOTÓN)
+         ============================================================ -->
+    <div id="modal-login" class="modal-flotante" style="display: none;">
+      <div class="login-container-mini">
+        <div class="cabecera-modal-mini">
+          <h3>🏙️ KatueteCity</h3>
+          <button id="btn-cerrar-modal-login" class="btn-cerrar-mini" type="button">✖</button>
+        </div>
+
+        <form id="form-login" autocomplete="on">
+          <div class="campo-grupo">
+            <input 
+              type="email" 
+              id="campo-email" 
+              placeholder="Correo electrónico" 
+              required 
+            />
+          </div>
+
+          <div class="campo-grupo">
+            <input 
+              type="password" 
+              id="campo-senha" 
+              placeholder="Contraseña (mínimo 6 caracteres)" 
+              minlength="6"
+              required 
+            />
+          </div>
+
+          <!-- BOTÓN CREAR CUENTA PRIMERO, LUEGO INICIAR SESIÓN -->
+          <div class="botones-auth-apilados">
+            <button type="button" class="btn-login-principal" id="btn-registrarse">Crear Cuenta</button>
+            <button type="submit" class="btn-secundario-completo" id="btn-iniciar-sesion">Iniciar Sesión</button>
+          </div>
+
+          <div class="separador-auth">
+            <span>O</span>
+          </div>
+
+          <button type="button" class="btn-google" id="btn-google">
+            <svg class="google-icono" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            Continuar con Google
+          </button>
+
+          <span class="erro-login" id="msg-erro"></span>
+        </form>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         MENÚS DESPLEGABLES FLOTANTES (SE ABREN DESDE EL DOCK)
+         ============================================================ -->
+
+    <!-- 1. MENÚ DE CONSTRUCCIÓN -->
+    <div id="menu-construccion" class="panel-menu-flotante" style="display: none;">
+      <div class="cabecera-menu">
+        <h4>🔨 Catálogo de Construcción</h4>
+        <button class="btn-cerrar-menu" data-cerrar="menu-construccion">✖</button>
+      </div>
+
+      <!-- Sub-Pestañas de Categorías -->
+      <div class="tabs-construccion">
+        <button class="tab-cat activa" data-cat="vias">🛣️ Vialidad</button>
+        <button class="tab-cat" data-cat="viviendas">🏠 Viviendas</button>
+        <button class="tab-cat" data-cat="comercios">🏪 Comercio</button>
+        <button class="tab-cat" data-cat="servicios">⚡ Servicios</button>
+      </div>
+
+      <!-- Contenedores de Artículos por Categoría -->
+      <div class="grid-catalogo">
+
+        <!-- Categoría: Vialidad -->
+        <div class="seccion-cat cat-vias">
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="estrada">
+            <span class="icono-cat">🛣️</span>
+            <div class="info-item">
+              <strong>Calle Asfaltada</strong>
+              <small>Conecta tu ciudad (Arrastra)</small>
+              <span class="costo-tag gratis">Gratis</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Categoría: Viviendas -->
+        <div class="seccion-cat cat-viviendas" style="display: none;">
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="casa">
+            <span class="icono-cat">🏠</span>
+            <div class="info-item">
+              <strong>Casa Familiar</strong>
+              <small>Alquiler residencial</small>
+              <span class="costo-tag">400 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="sobrado">
+            <span class="icono-cat">🏡</span>
+            <div class="info-item">
+              <strong>Sobrado Duplex</strong>
+              <small>Mayor capacidad</small>
+              <span class="costo-tag">900 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="predio">
+            <span class="icono-cat">🏢</span>
+            <div class="info-item">
+              <strong>Edificio Departamental</strong>
+              <small>Alta densidad urbana</small>
+              <span class="costo-tag">2.200 Ø</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Categoría: Comercio -->
+        <div class="seccion-cat cat-comercios" style="display: none;">
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="loja">
+            <span class="icono-cat">🏪</span>
+            <div class="info-item">
+              <strong>Tienda Comercial</strong>
+              <small>Genera actividad económica</small>
+              <span class="costo-tag">1.100 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="posto">
+            <span class="icono-cat">⛽</span>
+            <div class="info-item">
+              <strong>Estación de Servicios</strong>
+              <small>Abastecimiento de vehículos</small>
+              <span class="costo-tag">1.800 Ø</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Categoría: Servicios -->
+        <div class="seccion-cat cat-servicios" style="display: none;">
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="parque">
+            <span class="icono-cat">🌳</span>
+            <div class="info-item">
+              <strong>Parque Ecológico</strong>
+              <small>Aumenta la felicidad</small>
+              <span class="costo-tag">600 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="usina">
+            <span class="icono-cat">⚡</span>
+            <div class="info-item">
+              <strong>Usina Eléctrica</strong>
+              <small>Energía para la metrópole</small>
+              <span class="costo-tag">2.800 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="caixaDAgua">
+            <span class="icono-cat">💧</span>
+            <div class="info-item">
+              <strong>Tanque de Agua</strong>
+              <small>Agua potable municipal</small>
+              <span class="costo-tag">2.000 Ø</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 2. MENÚ DE EMPLEO / TRABAJO -->
+    <div id="menu-trabajo" class="panel-menu-flotante" style="display: none;">
+      <div class="cabecera-menu">
+        <h4>💼 Centro de Empleo Municipal</h4>
+        <button class="btn-cerrar-menu" data-cerrar="menu-trabajo">✖</button>
+      </div>
+      <div class="contenido-menu-empleo">
+        <p>Cumple turnos laborales en la ciudad para generar ingresos y financiar tus construcciones y alquileres.</p>
+        <div class="tarjeta-turno">
+          <div class="detalle-turno">
+            <span>Salario por Turno:</span>
+            <strong class="salario-resaltado">+350 Oikos</strong>
+          </div>
+          <div class="detalle-turno">
+            <span>Duración del Turno:</span>
+            <strong>10 segundos</strong>
+          </div>
+
+          <div id="progreso-trabajo-contenedor">
+            <div id="barra-progreso-trabajo"></div>
+            <span id="texto-progreso-trabajo">Listo para turno</span>
+          </div>
+
+          <button id="btn-trabajar" class="btn-accion-trabajo-grande">
+            💼 Cumplir Turno de Trabajo
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. MENÚ DE CIUDAD (MAPA Y CIUDADANOS) -->
+    <div id="menu-ciudad" class="panel-menu-flotante" style="display: none;">
+      <div class="cabecera-menu">
+        <h4>🗺️ Ciudad y Ciudadanos</h4>
+        <button class="btn-cerrar-menu" data-cerrar="menu-ciudad">✖</button>
+      </div>
+      <div class="contenido-menu-ciudad">
+        <div class="minimapa-box">
+          <h5>Plano Urbano en Vivo</h5>
+          <canvas id="mini-mapa" width="130" height="130"></canvas>
+        </div>
+        <div class="ciudadanos-box">
+          <h5>Ciudadanos en Línea</h5>
+          <div id="lista-usuarios-conectados"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. TARJETA FLOTANTE DE INSPECCIÓN (SOLO APARECE AL TOCAR UN EDIFICIO) -->
+    <div id="card-inspeccion" class="card-inspeccion-flotante" style="display: none;">
+      <div class="cabecera-card">
+        <span id="card-titulo-edificio">🏠 Vivienda</span>
+        <button id="btn-cerrar-card" class="btn-cerrar-mini">✖</button>
+      </div>
+      <div id="card-detalles-edificio"></div>
+      <div id="zona-acciones-inmueble" style="margin-top: 10px; display: none;">
         <button id="btn-alquilar-casa" class="btn-alquiler">🔑 Alquilar Vivienda (150 Oikos)</button>
         <button id="btn-desalojar-casa" class="btn-desalojo" style="display: none;">🚪 Entregar Llaves</button>
       </div>
     </div>
 
-    <!-- Lista Desplegable de Ciudadanos -->
-    <div id="panel-ciudadanos">
-      <h4>👥 Ciudadanos en KatueteCity</h4>
-      <div id="lista-usuarios-conectados"></div>
-    </div>
+    <!-- ============================================================
+         BARRA INFERIOR DE MENÚ (DOCK PRINCIPAL ESTILO SIMCITY)
+         ============================================================ -->
+    <div id="dock-menu-inferior">
+      <button class="btn-dock activo btn-ferramenta" data-ferramenta="ponteiro" id="dock-btn-puntero" title="Inspeccionar">
+        <span class="icono-dock">🖱️</span>
+        <span class="etiqueta-dock">Inspeccionar</span>
+      </button>
 
-    <!-- Mini-Mapa en Tiempo Real -->
-    <div id="container-minimapa">
-      <h4>🗺️ Plano Urbano</h4>
-      <canvas id="mini-mapa" width="120" height="120"></canvas>
-    </div>
+      <button class="btn-dock" id="dock-btn-construir" title="Abrir Catálogo de Obras">
+        <span class="icono-dock">🔨</span>
+        <span class="etiqueta-dock">Construir</span>
+      </button>
 
-    <!-- Barra de Controles Inferior -->
-    <div id="painel-controles">
-      <div class="controle-item"><kbd>Clic izq.</kbd> Construir / Info</div>
-      <div class="controle-item"><kbd>Arrastrar izq.</kbd> Trazar calles / Girar cámara</div>
-      <div class="controle-item"><kbd>Clic der.</kbd> Mover cámara (Pan)</div>
-      <div class="controle-item"><kbd>R</kbd> Girar Edificio</div>
-      <div class="controle-item"><kbd>Del</kbd> Demoler</div>
-      <div class="controle-item"><kbd>Esc</kbd> Modo Puntero</div>
+      <button class="btn-dock" id="dock-btn-trabajar" title="Centro de Trabajo">
+        <span class="icono-dock">💼</span>
+        <span class="etiqueta-dock">Empleo</span>
+      </button>
+
+      <button class="btn-dock" id="dock-btn-ciudad" title="Plano y Habitantes">
+        <span class="icono-dock">🗺️</span>
+        <span class="etiqueta-dock">Ciudad</span>
+      </button>
+
+      <button class="btn-dock btn-ferramenta" data-ferramenta="demolir" id="dock-btn-demoler" title="Modo Demolición">
+        <span class="icono-dock">💥</span>
+        <span class="etiqueta-dock">Demoler</span>
+      </button>
+
+      <button class="btn-dock admin-btn" id="btn-panel-admin" style="display: none;" title="Panel de Alcaldía">
+        <span class="icono-dock">👑</span>
+        <span class="etiqueta-dock">Alcaldía</span>
+      </button>
     </div>
 
     <!-- Notificación Global Flotante (Toast) -->
@@ -274,6 +330,8 @@
         <button id="admin-cerrar-modal" class="btn-secundario" style="width: 100%; margin-top: 14px;">Cerrar Panel</button>
       </div>
     </div>
+
+  </div><!-- fin #hud -->
 
   </div><!-- fin #hud -->
 

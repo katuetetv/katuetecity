@@ -159,57 +159,11 @@ function tocarSonido(tipo) {
 }
 
 /* ============================================================
-   4. EVENTOS DE AUTENTICACIÓN FIREBASE Y ADMIN
+   4. EVENTOS DE AUTENTICACIÓN Y MODAL DE LOGIN MINIMALISTA
    ============================================================ */
-const tabCiudadano = document.getElementById('tab-rol-ciudadano');
-const tabAdmin = document.getElementById('tab-rol-admin');
-const formLoginCiudadano = document.getElementById('form-login');
-const formLoginAdmin = document.getElementById('form-login-admin');
-
-// Alternador de pestañas
-if (tabCiudadano && tabAdmin) {
-  tabCiudadano.addEventListener('click', () => {
-    tabCiudadano.classList.add('activa');
-    tabAdmin.classList.remove('activa');
-    formLoginCiudadano.style.display = 'block';
-    formLoginAdmin.style.display = 'none';
-  });
-
-  tabAdmin.addEventListener('click', () => {
-    tabAdmin.classList.add('activa');
-    tabCiudadano.classList.remove('activa');
-    formLoginCiudadano.style.display = 'none';
-    formLoginAdmin.style.display = 'block';
-    document.getElementById('campo-admin-usuario').focus();
-  });
-}
-
-// 4.0 Formulario de Acceso de Administrador
-formLoginAdmin.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const usuario = document.getElementById('campo-admin-usuario').value.trim().toLowerCase();
-  const clave = document.getElementById('campo-admin-clave').value;
-  const msgAdmin = document.getElementById('msg-erro-admin');
-
-  // Credenciales Oficiales de Alcaldía
-  const esCorreoAdmin = (usuario === 'katuetecity@katuete.com' || usuario === 'admin');
-  const esClaveCorrecta = (clave === 'R4nUbAl48N6a' || clave === 'R4nUbAl48N6a');
-
-  if (esCorreoAdmin && esClaveCorrecta) {
-    msgAdmin.textContent = '';
-    obtenerAudioContext();
-    iniciarSesionComoAdmin(usuario);
-  } else {
-    // Si intenta ingresar por Firebase con estas credenciales
-    try {
-      obtenerAudioContext();
-      await signInWithEmailAndPassword(auth, usuario, clave);
-    } catch (err) {
-      tocarSonido('error');
-      msgAdmin.textContent = '⚠️ Correo o contraseña de Administrador incorrectos.';
-    }
-  }
-});
+const modalLogin = document.getElementById('modal-login');
+const btnAbrirLogin = document.getElementById('btn-abrir-login');
+const btnCerrarLogin = document.getElementById('btn-cerrar-modal-login');
 
 const formLogin = document.getElementById('form-login');
 const campoEmail = document.getElementById('campo-email');
@@ -218,29 +172,29 @@ const btnRegistrarse = document.getElementById('btn-registrarse');
 const btnGoogle = document.getElementById('btn-google');
 const msgErro = document.getElementById('msg-erro');
 
-// 4.1 Iniciar Sesión con Correo y Contraseña
-formLogin.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  msgErro.textContent = '';
-  const email = campoEmail.value.trim();
-  const password = campoSenha.value;
+// Abrir y Cerrar Modal de Login
+if (btnAbrirLogin && modalLogin) {
+  btnAbrirLogin.addEventListener('click', () => {
+    modalLogin.style.display = 'flex';
+    msgErro.textContent = '';
+    campoEmail.focus();
+  });
+}
 
-  try {
-    obtenerAudioContext();
-    await signInWithEmailAndPassword(auth, email, password);
-  } catch (error) {
-    mostrarErrorAuth(error.code, error.message);
-  }
-});
+if (btnCerrarLogin && modalLogin) {
+  btnCerrarLogin.addEventListener('click', () => {
+    modalLogin.style.display = 'none';
+  });
+}
 
-// 4.2 Crear Nueva Cuenta con Correo y Contraseña
+// 4.1 BOTÓN CREAR CUENTA (PRIMERO)
 btnRegistrarse.addEventListener('click', async () => {
   msgErro.textContent = '';
   const email = campoEmail.value.trim();
   const password = campoSenha.value;
 
   if (!email || !password) {
-    msgErro.textContent = 'Por favor completa el correo y una contraseña (mínimo 6 caracteres).';
+    msgErro.textContent = 'Ingresa correo y contraseña (mínimo 6 caracteres).';
     return;
   }
 
@@ -248,6 +202,31 @@ btnRegistrarse.addEventListener('click', async () => {
     obtenerAudioContext();
     await createUserWithEmailAndPassword(auth, email, password);
     mostrarNotificacion('🎉 ¡Cuenta creada con éxito en KatueteCity!');
+    modalLogin.style.display = 'none';
+  } catch (error) {
+    mostrarErrorAuth(error.code, error.message);
+  }
+});
+
+// 4.2 BOTÓN INICIAR SESIÓN (SEGUNDO)
+formLogin.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  msgErro.textContent = '';
+  const email = campoEmail.value.trim().toLowerCase();
+  const password = campoSenha.value;
+
+  // Reconocimiento directo para Alcalde / Admin
+  if (email === 'katuetecity@katuete.com' && password === 'juniorceo0905') {
+    obtenerAudioContext();
+    iniciarSesionComoAdmin(email);
+    modalLogin.style.display = 'none';
+    return;
+  }
+
+  try {
+    obtenerAudioContext();
+    await signInWithEmailAndPassword(auth, email, password);
+    modalLogin.style.display = 'none';
   } catch (error) {
     mostrarErrorAuth(error.code, error.message);
   }
@@ -259,6 +238,7 @@ btnGoogle.addEventListener('click', async () => {
   try {
     obtenerAudioContext();
     await signInWithPopup(auth, googleProvider);
+    modalLogin.style.display = 'none';
   } catch (error) {
     mostrarErrorAuth(error.code, error.message);
   }
@@ -268,7 +248,12 @@ btnGoogle.addEventListener('click', async () => {
 document.getElementById('btn-desconectar').addEventListener('click', async () => {
   try {
     await signOut(auth);
-    location.reload();
+    jugadorLocal.uid = null;
+    jugadorLocal.nombre = 'Visitante';
+    jugadorLocal.email = '';
+    jugadorLocal.esAdmin = false;
+    actualizarHUD();
+    mostrarNotificacion('👋 Has cerrado sesión.');
   } catch (error) {
     console.error('Error al cerrar sesión:', error);
   }
@@ -280,18 +265,22 @@ onAuthStateChanged(auth, (user) => {
     usuarioFirebase = user;
     const emailNormalizado = (user.email || '').toLowerCase();
 
-    // Si el correo autenticado es el de Alcaldía, entra directamente como Administrador
+    // Reconocimiento universal: si el correo es de Alcaldía, entra como Administrador
     if (emailNormalizado === 'katuetecity@katuete.com') {
       iniciarSesionComoAdmin(user.email);
     } else {
       const nombreExtraido = user.displayName || user.email.split('@')[0];
       iniciarSesionCiudadano(user.uid, nombreExtraido, user.email);
     }
+
+    if (modalLogin) modalLogin.style.display = 'none';
   } else {
-    document.getElementById('tela-login').style.display = 'flex';
-    document.getElementById('hud').style.display = 'none';
-    const canvas = document.getElementById('canvas-jogo');
-    if (canvas) canvas.style.display = 'none';
+    // Modo Visitante (el mapa sigue 100% visible y jugable)
+    jugadorLocal.uid = null;
+    jugadorLocal.nombre = 'Visitante';
+    jugadorLocal.email = '';
+    jugadorLocal.esAdmin = false;
+    actualizarHUD();
   }
 });
 
@@ -353,10 +342,6 @@ function iniciarSesionCiudadano(uid, nombre, email) {
   jugadorLocal.email = email;
   jugadorLocal.esAdmin = false;
 
-  document.getElementById('tela-login').style.display = 'none';
-  document.getElementById('canvas-jogo').style.display = 'block';
-  document.getElementById('hud').style.display = 'block';
-
   // Cargar progreso del usuario
   recuperarCiudadGuardada();
   actualizarHUD();
@@ -389,14 +374,10 @@ function iniciarSesionCiudadano(uid, nombre, email) {
 
 function iniciarSesionComoAdmin(usuario) {
   jugadorLocal.uid = 'admin_master';
-  jugadorLocal.nombre = usuario.toUpperCase();
-  jugadorLocal.email = 'admin@katuetecity.gob';
+  jugadorLocal.nombre = 'ALCALDE';
+  jugadorLocal.email = 'katuetecity@katuete.com';
   jugadorLocal.esAdmin = true;
-  jugadorLocal.oikos = 9999999; // Fondos casi ilimitados de alcaldía
-
-  document.getElementById('tela-login').style.display = 'none';
-  document.getElementById('canvas-jogo').style.display = 'block';
-  document.getElementById('hud').style.display = 'block';
+  jugadorLocal.oikos = 9999999; // Fondos ilimitados
 
   recuperarCiudadGuardada();
   actualizarHUD();
@@ -905,9 +886,96 @@ function configurarEventosInteraccion() {
     }
   });
 
+  // Menús Flotantes del Dock
+  const menuConstruccion = document.getElementById('menu-construccion');
+  const menuTrabajo = document.getElementById('menu-trabajo');
+  const menuCiudad = document.getElementById('menu-ciudad');
+  const cardInspeccion = document.getElementById('card-inspeccion');
+
+  function cerrarTodosLosMenus() {
+    if (menuConstruccion) menuConstruccion.style.display = 'none';
+    if (menuTrabajo) menuTrabajo.style.display = 'none';
+    if (menuCiudad) menuCiudad.style.display = 'none';
+  }
+
+  // Botones de cierre (X)
+  document.querySelectorAll('.btn-cerrar-menu').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idMenu = btn.dataset.cerrar;
+      const el = document.getElementById(idMenu);
+      if (el) el.style.display = 'none';
+    });
+  });
+
+  document.getElementById('btn-cerrar-card')?.addEventListener('click', () => {
+    if (cardInspeccion) cardInspeccion.style.display = 'none';
+  });
+
+  // Dock: Botón Puntero
+  document.getElementById('dock-btn-puntero')?.addEventListener('click', () => {
+    cerrarTodosLosMenus();
+    seleccionarHerramienta('ponteiro');
+    actualizarDockActivo('dock-btn-puntero');
+  });
+
+  // Dock: Botón Construir
+  document.getElementById('dock-btn-construir')?.addEventListener('click', () => {
+    const visible = menuConstruccion.style.display === 'block';
+    cerrarTodosLosMenus();
+    if (!visible) {
+      menuConstruccion.style.display = 'block';
+      actualizarDockActivo('dock-btn-construir');
+    }
+  });
+
+  // Dock: Botón Empleo
+  document.getElementById('dock-btn-trabajar')?.addEventListener('click', () => {
+    const visible = menuTrabajo.style.display === 'block';
+    cerrarTodosLosMenus();
+    if (!visible) {
+      menuTrabajo.style.display = 'block';
+      actualizarDockActivo('dock-btn-trabajar');
+    }
+  });
+
+  // Dock: Botón Ciudad / Mapa
+  document.getElementById('dock-btn-ciudad')?.addEventListener('click', () => {
+    const visible = menuCiudad.style.display === 'block';
+    cerrarTodosLosMenus();
+    if (!visible) {
+      menuCiudad.style.display = 'block';
+      desenharMiniMapa();
+      actualizarDockActivo('dock-btn-ciudad');
+    }
+  });
+
+  // Dock: Botón Demoler
+  document.getElementById('dock-btn-demoler')?.addEventListener('click', () => {
+    cerrarTodosLosMenus();
+    seleccionarHerramienta('demolir');
+    actualizarDockActivo('dock-btn-demoler');
+  });
+
+  // Sub-Pestañas de Categorías de Construcción
+  document.querySelectorAll('.tab-cat').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab-cat').forEach(t => t.classList.remove('activa'));
+      tab.classList.add('activa');
+      const cat = tab.dataset.cat;
+      document.querySelectorAll('.seccion-cat').forEach(sec => {
+        sec.style.display = sec.classList.contains(`cat-${cat}`) ? 'block' : 'none';
+      });
+    });
+  });
+
+  // Selección de Item del Catálogo de Construcción
   document.querySelectorAll('.btn-ferramenta').forEach(btn => {
     btn.addEventListener('click', () => {
-      seleccionarHerramienta(btn.dataset.ferramenta);
+      const tipo = btn.dataset.ferramenta;
+      seleccionarHerramienta(tipo);
+      // Cierra el menú al elegir para ver el mapa 3D libre
+      if (menuConstruccion) menuConstruccion.style.display = 'none';
+      actualizarDockActivo('dock-btn-construir');
     });
   });
 
@@ -920,26 +988,20 @@ function configurarEventosInteraccion() {
   });
 
   // Botones de Alquiler / Desalojo
-  document.getElementById('btn-alquilar-casa').addEventListener('click', () => {
+  document.getElementById('btn-alquilar-casa')?.addEventListener('click', () => {
     if (estado.celulaSelecionada) {
       alquilarCasaLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
     }
   });
 
-  document.getElementById('btn-desalojar-casa').addEventListener('click', () => {
+  document.getElementById('btn-desalojar-casa')?.addEventListener('click', () => {
     if (estado.celulaSelecionada) {
       desalojarCasaLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
     }
   });
 
   // Guardar Local
-  document.getElementById('btn-guardar-local').addEventListener('click', guardarCiudadEnStorage);
-
-  // Toggle Lista de Ciudadanos
-  document.getElementById('btn-toggle-ciudadanos').addEventListener('click', () => {
-    const p = document.getElementById('panel-ciudadanos');
-    p.style.display = (p.style.display === 'block') ? 'none' : 'block';
-  });
+  document.getElementById('btn-guardar-local')?.addEventListener('click', guardarCiudadEnStorage);
 
   window.addEventListener('resize', () => {
     if (camera && renderizador) {
@@ -1126,41 +1188,56 @@ function recuperarCiudadGuardada() {
 }
 
 /* ============================================================
-   12. INTERFAZ Y DETALLES
+   12. INTERFAZ Y DETALLES (CARD DE INSPECCIÓN)
    ============================================================ */
+function actualizarDockActivo(idBoton) {
+  document.querySelectorAll('.btn-dock').forEach(b => b.classList.remove('activo'));
+  const btn = document.getElementById(idBoton);
+  if (btn) btn.classList.add('activo');
+}
+
 function mostrarDetallesCelula(gx, gz) {
   const celda = estado.grade[gz]?.[gx];
-  const info = document.getElementById('conteudo-info');
+  const card = document.getElementById('card-inspeccion');
+  const titulo = document.getElementById('card-titulo-edificio');
+  const detalles = document.getElementById('card-detalles-edificio');
   const zonaAcciones = document.getElementById('zona-acciones-inmueble');
   const btnAlquilar = document.getElementById('btn-alquilar-casa');
   const btnDesalojar = document.getElementById('btn-desalojar-casa');
+
+  if (!card) return;
 
   zonaAcciones.style.display = 'none';
   btnAlquilar.style.display = 'none';
   btnDesalojar.style.display = 'none';
 
   if (!celda) {
-    info.innerHTML = `🌿 <strong>Terreno Municipal Libre</strong><br/>Coordenada: (${gx}, ${gz})<br/><small>Selecciona una herramienta para edificar.</small>`;
+    titulo.textContent = '🌿 Terreno Libre';
+    detalles.innerHTML = `Sector: (${gx}, ${gz})<br/><small>Selecciona 'Construir' en el menú inferior para edificar.</small>`;
+    card.style.display = 'block';
     return;
   }
 
   const esVivienda = ['casa', 'sobrado', 'predio'].includes(celda.tipo);
   const estadoAlquiler = celda.inquilino
-    ? `<span style="color:#ffb74d">Alquilada por: <strong>${celda.inquilino}</strong></span>`
+    ? `<span style="color:#ffb74d">Inquilino: <strong>${celda.inquilino}</strong></span>`
     : `<span style="color:#81c784">Disponible para Alquiler</span>`;
 
-  info.innerHTML = `
-    <strong>Edificio: ${celda.tipo.toUpperCase()}</strong><br/>
+  titulo.textContent = `${celda.tipo === 'casa' ? '🏠 Casa' : celda.tipo === 'sobrado' ? '🏡 Sobrado' : celda.tipo === 'predio' ? '🏢 Edificio' : celda.tipo === 'estrada' ? '🛣️ Calle' : celda.tipo.toUpperCase()}`;
+  
+  detalles.innerHTML = `
     Ubicación: Sector (${gx}, ${gz})<br/>
     Constructor: <em>${celda.autor || 'Municipio'}</em><br/>
-    ${esVivienda ? `Estado: ${estadoAlquiler}<br/><small>Costo de alquiler: 150 Oikos / ciclo</small>` : ''}
+    ${esVivienda ? `Estado: ${estadoAlquiler}<br/><small>Alquiler: 150 Oikos / ciclo</small>` : ''}
   `;
+
+  card.style.display = 'block';
 
   if (esVivienda) {
     zonaAcciones.style.display = 'block';
     if (!celda.inquilino) {
       btnAlquilar.style.display = 'block';
-    } else if (celda.inquilino === jugadorLocal.nombre) {
+    } else if (celda.inquilino === jugadorLocal.nombre || jugadorLocal.esAdmin) {
       btnDesalojar.style.display = 'block';
     }
   }
@@ -1177,11 +1254,17 @@ function seleccionarHerramienta(nome) {
 
   const indRot = document.getElementById('indicador-rotacao');
   const precisaRot = ['casa', 'sobrado', 'predio', 'loja', 'posto', 'usina'].includes(nome);
-  indRot.classList.toggle('visivel', precisaRot);
+  if (indRot) indRot.classList.toggle('visivel', precisaRot);
 
   const canvas = document.getElementById('canvas-jogo');
-  canvas.classList.toggle('modo-construir', nome !== 'ponteiro' && nome !== 'demolir');
-  canvas.classList.toggle('modo-demolir', nome === 'demolir');
+  if (canvas) {
+    canvas.classList.toggle('modo-construir', nome !== 'ponteiro' && nome !== 'demolir');
+    canvas.classList.toggle('modo-demolir', nome === 'demolir');
+  }
+
+  // Si selecciona puntero o demoler, actualiza el dock
+  if (nome === 'ponteiro') actualizarDockActivo('dock-btn-puntero');
+  if (nome === 'demolir') actualizarDockActivo('dock-btn-demoler');
 }
 
 function actualizarPreviewFantasma(gx, gz) {
@@ -1247,20 +1330,34 @@ function limparPreviewLinhaEstrada() {
 
 function actualizarHUD() {
   const badgeNombre = document.getElementById('stat-jugador-nombre');
-  const badgeUsuarioContenedor = badgeNombre.closest('.user-badge');
+  const badgeUsuarioContenedor = badgeNombre ? badgeNombre.closest('.user-badge') : null;
   const saldoTexto = document.getElementById('stat-oikos-saldo');
   const btnAdmin = document.getElementById('btn-panel-admin');
+  const btnAbrirLogin = document.getElementById('btn-abrir-login');
+  const btnDesconectar = document.getElementById('btn-desconectar');
 
   if (jugadorLocal.esAdmin) {
-    badgeNombre.textContent = `👑 Alcalde: ${jugadorLocal.nombre}`;
+    if (badgeNombre) badgeNombre.textContent = `👑 Alcalde`;
     badgeUsuarioContenedor?.classList.add('admin');
-    saldoTexto.textContent = '∞';
-    if (btnAdmin) btnAdmin.style.display = 'inline-block';
-  } else {
-    badgeNombre.textContent = jugadorLocal.nombre;
+    if (saldoTexto) saldoTexto.textContent = '∞';
+    if (btnAdmin) btnAdmin.style.display = 'inline-flex';
+    if (btnAbrirLogin) btnAbrirLogin.style.display = 'none';
+    if (btnDesconectar) btnDesconectar.style.display = 'inline-block';
+  } else if (jugadorLocal.uid) {
+    if (badgeNombre) badgeNombre.textContent = jugadorLocal.nombre;
     badgeUsuarioContenedor?.classList.remove('admin');
-    saldoTexto.textContent = Number(jugadorLocal.oikos).toLocaleString('es-PY');
+    if (saldoTexto) saldoTexto.textContent = Number(jugadorLocal.oikos).toLocaleString('es-PY');
     if (btnAdmin) btnAdmin.style.display = 'none';
+    if (btnAbrirLogin) btnAbrirLogin.style.display = 'none';
+    if (btnDesconectar) btnDesconectar.style.display = 'inline-block';
+  } else {
+    // Visitante (no ha iniciado sesión todavía)
+    if (badgeNombre) badgeNombre.textContent = 'Visitante';
+    badgeUsuarioContenedor?.classList.remove('admin');
+    if (saldoTexto) saldoTexto.textContent = Number(jugadorLocal.oikos).toLocaleString('es-PY');
+    if (btnAdmin) btnAdmin.style.display = 'none';
+    if (btnAbrirLogin) btnAbrirLogin.style.display = 'inline-block';
+    if (btnDesconectar) btnDesconectar.style.display = 'none';
   }
 }
 
@@ -1422,3 +1519,20 @@ function animar() {
     renderizador.render(cena, camera);
   }
 }
+
+/* ============================================================
+   14. AUTO-INICIALIZACIÓN INMEDIATA DEL MAPA 3D
+   ============================================================ */
+// Se ejecuta de inmediato al cargar el script para que el visitante
+// vea el mapa 3D y la ciudad sin tener que pasar por ninguna pantalla previa.
+iniciarMotor3D();
+recuperarCiudadGuardada();
+
+const centroInicial = Math.floor(TAMANHO_GRADE / 2);
+if (estado.grade[centroInicial][centroInicial] === null) {
+  generarCiudadBase();
+}
+
+iniciarCicloAlquilerLocal();
+actualizarHUD();
+desenharMiniMapa();

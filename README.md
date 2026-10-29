@@ -14,6 +14,23 @@ El juego cuenta con un sistema de cuentas seguro y persistente gracias a **Fireb
 
 ---
 
+## 🎮 Interfaz y Menú Principal (Diseño Limpio)
+
+La interfaz se ha rediseñado con un **Dock Inferior Central** (estilo SimCity / Cities Skylines) para mantener la vista 3D completamente despejada:
+
+* 🖱️ **Inspeccionar (Puntero):** Al tocar cualquier edificio, aparece una tarjeta compacta con sus datos y botones de alquiler.
+* 🔨 **Construir:** Abre el catálogo clasificado en 4 pestañas:
+  * 🛣️ **Vialidad:** Calles asfaltadas (arrastre libre).
+  * 🏠 **Viviendas:** Casas familiares (400 Ø), Sobrados (900 Ø), Edificios departamentales (2.2k Ø).
+  * 🏪 **Comercio:** Tiendas comerciales (1.1k Ø), Estaciones de servicio (1.8k Ø).
+  * ⚡ **Servicios:** Parques ecológicos (600 Ø), Usinas eléctricas (2.8k Ø), Tanques de agua (2.0k Ø).
+* 💼 **Empleo:** Abre el centro de trabajo para cumplir turnos y cobrar salario de +350 Oikos.
+* 🗺️ **Ciudad:** Despliega el plano urbano (Mini-Mapa) y los ciudadanos en línea.
+* 💥 **Demoler:** Activa el modo demolición.
+* 👑 **Alcaldía (Exclusivo Admin):** Acceso al panel de control municipal para inyectar fondos o restaurar la ciudad.
+
+---
+
 ## 👑 Sistema de Roles: Administrador vs Ciudadano
 
 La pantalla de ingreso cuenta ahora con selector de roles:

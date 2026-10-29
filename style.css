@@ -33,211 +33,37 @@ body {
 }
 
 /* ============================================================
-   PANTALLA DE INGRESO (FIREBASE AUTH)
+   MODAL DE LOGIN MINIMALISTA (DESPLEGABLE)
    ============================================================ */
-#tela-login {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  background: radial-gradient(ellipse at center, #0e3518 0%, #040d07 100%);
-}
-
-.login-container {
+.login-container-mini {
   background: var(--cor-painel);
-  border: 1px solid var(--cor-borda);
-  border-radius: 16px;
-  padding: 38px 36px;
-  width: 390px;
-  box-shadow: var(--sombra), 0 0 50px rgba(45, 158, 66, 0.2);
-  text-align: center;
-  animation: fadeInDown 0.5s ease;
-}
-
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-25px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.login-logo {
-  font-size: 46px;
-  margin-bottom: 4px;
-}
-
-.login-titulo {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--cor-secundaria);
-  letter-spacing: 2px;
-}
-
-.login-subtitulo {
-  font-size: 11px;
-  color: var(--cor-texto-dim);
-  margin-bottom: 16px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-/* Selector de Rol (Tabs) */
-.tabs-rol {
-  display: flex;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: var(--raio);
-  padding: 4px;
-  margin-bottom: 20px;
-  border: 1px solid rgba(45, 158, 66, 0.3);
-}
-
-.tab-rol {
-  flex: 1;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--cor-texto-dim);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.tab-rol.activa {
-  background: var(--cor-secundaria);
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.btn-login-admin {
-  width: 100%;
-  padding: 13px;
-  background: linear-gradient(135deg, #d32f2f, #f57c00);
-  border: none;
-  border-radius: var(--raio);
-  color: white;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  transition: opacity 0.2s, transform 0.1s;
-  margin-top: 10px;
-}
-
-.btn-login-admin:hover {
-  opacity: 0.92;
-  transform: translateY(-1px);
-}
-
-/* Badge de Alcalde / Admin en el HUD */
-.user-badge.admin {
-  background: linear-gradient(135deg, rgba(251, 192, 45, 0.3), rgba(245, 124, 0, 0.3));
-  border: 1px solid #ffd54f;
-  color: #fff9c4;
-}
-
-.admin-btn {
-  background: rgba(251, 192, 45, 0.2) !important;
-  border-color: #fbc02d !important;
-  color: #ffd54f !important;
-  font-weight: 700;
-}
-
-.admin-btn:hover {
-  background: rgba(251, 192, 45, 0.35) !important;
-  color: #ffffff !important;
-}
-
-/* Modal Flotante de Administración */
-.modal-flotante {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 300;
-  pointer-events: all;
-}
-
-.modal-admin-contenido {
-  background: var(--cor-painel);
-  border: 1px solid #fbc02d;
+  border: 1px solid rgba(45, 158, 66, 0.45);
   border-radius: 14px;
   padding: 24px;
   width: 320px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(45, 158, 66, 0.2);
   text-align: center;
+  animation: fadeInDown 0.3s ease;
 }
 
-.modal-admin-contenido h3 {
-  color: #fbc02d;
-  font-size: 15px;
-  margin-bottom: 4px;
-}
-
-.modal-admin-contenido p {
-  font-size: 11px;
-  color: var(--cor-texto-dim);
-  margin-bottom: 16px;
-}
-
-.admin-acciones {
+.cabecera-modal-mini {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(45, 158, 66, 0.25);
 }
-
-.btn-admin-accion {
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(45, 158, 66, 0.4);
-  border-radius: 6px;
-  color: #e8f5e9;
-  font-size: 12px;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.2s;
-}
-
-.btn-admin-accion:hover {
-  background: rgba(45, 158, 66, 0.2);
-}
-
-.btn-admin-accion.peligro {
-  border-color: rgba(239, 83, 80, 0.5);
-  color: #ef9a9a;
-}
-
-.btn-admin-accion.peligro:hover {
-  background: rgba(239, 83, 80, 0.25);
+.cabecera-modal-mini h3 {
+  font-size: 16px;
+  color: var(--cor-secundaria);
+  letter-spacing: 1px;
 }
 
 .campo-grupo {
-  margin-bottom: 14px;
-  text-align: left;
+  margin-bottom: 12px;
 }
-
-.campo-grupo label {
-  display: block;
-  font-size: 11px;
-  color: var(--cor-texto-dim);
-  margin-bottom: 5px;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  font-weight: 600;
-}
-
 .campo-grupo input {
   width: 100%;
   padding: 11px 14px;
@@ -245,24 +71,25 @@ body {
   border: 1px solid rgba(45, 158, 66, 0.4);
   border-radius: var(--raio);
   color: #fff;
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-
 .campo-grupo input:focus {
   border-color: var(--cor-secundaria);
   box-shadow: 0 0 0 3px rgba(45, 158, 66, 0.25);
 }
 
-.botones-auth {
+/* Botones de Autenticación: Crear Cuenta Primero */
+.botones-auth-apilados {
   display: flex;
-  gap: 10px;
-  margin-top: 10px;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
 }
 
-.btn-login {
-  flex: 1;
+.btn-login-principal {
+  width: 100%;
   padding: 12px;
   background: linear-gradient(135deg, var(--cor-primaria), var(--cor-secundaria));
   border: none;
@@ -272,38 +99,37 @@ body {
   font-weight: 700;
   cursor: pointer;
   letter-spacing: 0.5px;
-  text-transform: uppercase;
   transition: opacity 0.2s, transform 0.1s;
 }
+.btn-login-principal:hover { opacity: 0.92; transform: translateY(-1px); }
 
-.btn-login:hover {
-  opacity: 0.92;
-  transform: translateY(-1px);
-}
-
-.btn-login:active {
-  transform: translateY(0);
-}
-
-.btn-secundario {
-  flex: 1;
-  padding: 12px;
-  background: rgba(45, 158, 66, 0.15);
-  border: 1px solid rgba(45, 158, 66, 0.5);
+.btn-secundario-completo {
+  width: 100%;
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(45, 158, 66, 0.45);
   border-radius: var(--raio);
   color: #c8e6c9;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  transition: background 0.2s, transform 0.1s;
+  transition: background 0.2s;
+}
+.btn-secundario-completo:hover {
+  background: rgba(45, 158, 66, 0.2);
+  color: #ffffff;
 }
 
-.btn-secundario:hover {
-  background: rgba(45, 158, 66, 0.3);
-  color: #fff;
-  transform: translateY(-1px);
+/* Botón de destacar login en la barra superior */
+.login-destaque {
+  background: linear-gradient(135deg, rgba(45, 158, 66, 0.3), rgba(251, 192, 45, 0.25)) !important;
+  border-color: #fbc02d !important;
+  color: #ffd54f !important;
+  font-weight: 700;
+}
+.login-destaque:hover {
+  background: rgba(251, 192, 45, 0.4) !important;
+  color: #ffffff !important;
 }
 
 /* Separador "O" */
@@ -311,18 +137,16 @@ body {
   display: flex;
   align-items: center;
   text-align: center;
-  margin: 16px 0;
+  margin: 12px 0;
   color: var(--cor-texto-dim);
   font-size: 11px;
 }
-
 .separador-auth::before,
 .separador-auth::after {
   content: '';
   flex: 1;
   border-bottom: 1px solid rgba(45, 158, 66, 0.25);
 }
-
 .separador-auth span {
   padding: 0 10px;
   font-weight: 600;
@@ -331,75 +155,43 @@ body {
 /* Botón de Google */
 .btn-google {
   width: 100%;
-  padding: 11px;
+  padding: 10px;
   background: #ffffff;
   border: none;
   border-radius: var(--raio);
   color: #3c4043;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   transition: background 0.2s, box-shadow 0.2s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
-
 .btn-google:hover {
   background: #f8f9fa;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
-
 .google-icono {
-  width: 18px;
-  height: 18px;
-}
-
-/* Botón de Invitado */
-.btn-invitado {
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px dashed rgba(45, 158, 66, 0.4);
-  border-radius: var(--raio);
-  color: var(--cor-texto-dim);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-
-.btn-invitado:hover {
-  background: rgba(45, 158, 66, 0.15);
-  color: #ffffff;
+  width: 16px;
+  height: 16px;
 }
 
 .erro-login {
   color: #ef5350;
-  font-size: 12px;
-  margin-top: 10px;
-  min-height: 18px;
-  display: block;
-}
-
-.credenciais-hint {
-  margin-top: 16px;
-  padding: 10px 12px;
-  background: rgba(45, 158, 66, 0.1);
-  border-radius: var(--raio);
   font-size: 11px;
-  color: var(--cor-texto-dim);
-  line-height: 1.5;
-  text-align: left;
+  margin-top: 10px;
+  min-height: 16px;
+  display: block;
 }
 
 /* ============================================================
    CANVAS 3D
    ============================================================ */
 #canvas-jogo {
-  display: none;
+  display: block;
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -418,7 +210,7 @@ body {
    HUD — BARRA SUPERIOR
    ============================================================ */
 #hud {
-  display: none;
+  display: block;
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -488,238 +280,333 @@ body {
   font-size: 15px;
 }
 
-/* --- MÓDULO DE TRABAJO Y SALARIOS --- */
-.modulo-empleo {
+/* ============================================================
+   BARRA INFERIOR DE MENÚ (DOCK ESTILO SIMCITY / CITIES SKYLINES)
+   ============================================================ */
+#dock-menu-inferior {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 25, 15, 0.95);
+  border: 1px solid rgba(45, 158, 66, 0.45);
+  border-radius: 40px;
+  padding: 6px 14px;
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 4px 8px;
-  border-radius: var(--raio);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 16px rgba(45, 158, 66, 0.2);
+  z-index: 150;
+  pointer-events: all;
+}
+
+.btn-dock {
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(45, 158, 66, 0.25);
-}
-
-.btn-accion-trabajo {
-  background: linear-gradient(135deg, #2e7d32, #43a047);
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.1s, opacity 0.2s;
-  white-space: nowrap;
-}
-
-.btn-accion-trabajo:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.btn-accion-trabajo:disabled {
-  background: #37474f;
-  color: #90a4ae;
-  cursor: not-allowed;
-  transform: none;
-}
-
-#progreso-trabajo-contenedor {
-  width: 100px;
-  height: 22px;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 4px;
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(45, 158, 66, 0.3);
-}
-
-#barra-progreso-trabajo {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #ffb300, #4caf50);
-  transition: width 1s linear;
-}
-
-#texto-progreso-trabajo {
-  position: absolute;
-  inset: 0;
+  border-radius: 28px;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 10px;
+  gap: 8px;
+  color: var(--cor-texto-dim);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  font-size: 13px;
   font-weight: 600;
-  color: #fff;
-  text-shadow: 0 1px 2px #000;
-}
-
-.separador-topo {
-  flex: 1;
-}
-
-.btn-topo {
-  padding: 6px 14px;
-  border-radius: var(--raio);
-  font-size: 12px;
-  cursor: pointer;
-  pointer-events: all;
-  border: 1px solid rgba(45, 158, 66, 0.4);
-  background: rgba(45, 158, 66, 0.15);
-  color: var(--cor-texto-dim);
-  transition: background 0.2s;
   white-space: nowrap;
 }
 
-.btn-topo:hover {
-  background: rgba(45, 158, 66, 0.3);
-  color: #fff;
-}
-
-.btn-topo.salir {
-  background: rgba(239, 83, 80, 0.15);
-  border-color: rgba(239, 83, 80, 0.4);
-  color: #ef9a9a;
-}
-
-.btn-topo.salir:hover {
-  background: rgba(239, 83, 80, 0.3);
-  color: #fff;
-}
-
-/* ============================================================
-   PANEL DE HERRAMIENTAS (LATERAL IZQUIERDA)
-   ============================================================ */
-#painel-ferramentas {
-  position: absolute;
-  top: 68px;
-  left: 10px;
-  width: 78px;
-  max-height: calc(100vh - 84px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  background: var(--cor-painel);
-  border: 1px solid rgba(45, 158, 66, 0.3);
-  border-radius: 12px;
-  padding: 8px 6px;
-  pointer-events: all;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  box-shadow: var(--sombra);
-  scrollbar-width: thin;
-  scrollbar-color: #2d9e42 transparent;
-}
-
-.sec-label {
-  font-size: 9px;
-  color: var(--cor-secundaria);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  text-align: center;
-  padding: 4px 0 2px;
-  border-top: 1px solid rgba(45, 158, 66, 0.2);
-  margin-top: 2px;
-}
-
-.sec-label:first-child {
-  border-top: none;
-  margin-top: 0;
-}
-
-.btn-ferramenta {
-  width: 66px;
-  height: 50px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(45, 158, 66, 0.25);
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  transition: background 0.15s, border-color 0.15s;
-  pointer-events: all;
-  color: var(--cor-texto-dim);
-  font-size: 9px;
-  text-align: center;
-  line-height: 1.1;
-}
-
-.btn-ferramenta .icone {
+.btn-dock .icono-dock {
   font-size: 18px;
   line-height: 1;
 }
 
-.btn-ferramenta:hover {
-  background: rgba(45, 158, 66, 0.2);
+.btn-dock:hover {
+  background: rgba(45, 158, 66, 0.25);
   border-color: var(--cor-secundaria);
-  color: var(--cor-texto);
+  color: #ffffff;
+  transform: translateY(-2px);
 }
 
-.btn-ferramenta.ativo {
-  background: rgba(45, 158, 66, 0.35);
-  border-color: var(--cor-secundaria);
-  color: white;
-  box-shadow: 0 0 10px rgba(45, 158, 66, 0.4);
-}
-
-.btn-custo {
-  font-size: 8px;
-  color: var(--cor-oikos);
-  font-weight: 700;
-}
-
-/* Indicador de Rotación */
-#indicador-rotacao {
-  position: absolute;
-  top: 68px;
-  left: 96px;
-  background: var(--cor-painel);
-  border: 1px solid rgba(45, 158, 66, 0.3);
-  border-radius: 8px;
-  padding: 6px 12px;
-  pointer-events: none;
-  font-size: 11px;
-  color: var(--cor-texto-dim);
-  display: none;
-  align-items: center;
-  gap: 6px;
-  box-shadow: var(--sombra);
-}
-
-#indicador-rotacao.visivel {
-  display: flex;
+.btn-dock.activo {
+  background: linear-gradient(135deg, var(--cor-primaria), var(--cor-secundaria));
+  border-color: #81c784;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(45, 158, 66, 0.4);
 }
 
 /* ============================================================
-   PANEL DE INFORMACIÓN Y ALQUILER (DERECHA)
+   PANELES DE MENÚ FLOTANTES (GAVETAS DESPLEGABLES)
    ============================================================ */
-#painel-info {
+.panel-menu-flotante {
   position: absolute;
-  top: 68px;
-  right: 10px;
-  width: 230px;
-  background: var(--cor-painel);
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 25, 15, 0.96);
+  border: 1px solid rgba(45, 158, 66, 0.45);
+  border-radius: 16px;
+  padding: 18px;
+  width: 440px;
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(45, 158, 66, 0.2);
+  z-index: 140;
+  pointer-events: all;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translate(-50%, 15px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.cabecera-menu {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(45, 158, 66, 0.25);
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.cabecera-menu h4 {
+  color: var(--cor-secundaria);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.btn-cerrar-menu, .btn-cerrar-mini {
+  background: transparent;
+  border: none;
+  color: var(--cor-texto-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.btn-cerrar-menu:hover, .btn-cerrar-mini:hover {
+  background: rgba(239, 83, 80, 0.2);
+  color: #ef9a9a;
+}
+
+/* Pestañas de categorías dentro de construcción */
+.tabs-construccion {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.tab-cat {
+  flex: 1;
+  padding: 7px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--cor-texto-dim);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.tab-cat:hover { color: #fff; }
+.tab-cat.activa {
+  background: var(--cor-secundaria);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+/* Grilla de items en el catálogo */
+.grid-catalogo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.item-catalogo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(45, 158, 66, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.item-catalogo:hover {
+  background: rgba(45, 158, 66, 0.2);
+  border-color: var(--cor-secundaria);
+  transform: translateX(4px);
+}
+
+.item-catalogo.ativo {
+  background: rgba(45, 158, 66, 0.35);
+  border-color: var(--cor-secundaria);
+  box-shadow: 0 0 10px rgba(45, 158, 66, 0.3);
+}
+
+.icono-cat {
+  font-size: 26px;
+}
+
+.info-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.info-item strong {
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.info-item small {
+  color: var(--cor-texto-dim);
+  font-size: 11px;
+}
+
+.costo-tag {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cor-oikos);
+  background: rgba(251, 192, 45, 0.15);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.costo-tag.gratis {
+  color: #81c784;
+  background: rgba(129, 199, 132, 0.15);
+}
+
+/* ============================================================
+   CONTENIDO DEL MENÚ DE EMPLEO
+   ============================================================ */
+.tarjeta-turno {
+  background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(45, 158, 66, 0.3);
   border-radius: 12px;
-  padding: 14px;
-  pointer-events: all;
-  box-shadow: var(--sombra);
-  font-size: 12px;
+  padding: 16px;
+  margin-top: 10px;
 }
 
-#painel-info h3 {
-  color: var(--cor-secundaria);
+.detalle-turno {
+  display: flex;
+  justify-content: space-between;
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
   margin-bottom: 8px;
+  color: var(--cor-texto-dim);
+}
+
+.salario-resaltado {
+  color: var(--cor-oikos);
+  font-size: 14px;
+}
+
+.btn-accion-trabajo-grande {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  background: linear-gradient(135deg, #2e7d32, #43a047);
+  border: none;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-accion-trabajo-grande:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+.btn-accion-trabajo-grande:disabled {
+  background: #37474f;
+  color: #90a4ae;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   CONTENIDO DEL MENÚ DE CIUDAD (MAPA + LISTA)
+   ============================================================ */
+.contenido-menu-ciudad {
+  display: flex;
+  gap: 16px;
+}
+
+.minimapa-box, .ciudadanos-box {
+  flex: 1;
+}
+
+.minimapa-box h5, .ciudadanos-box h5 {
+  font-size: 11px;
+  color: var(--cor-secundaria);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#mini-mapa {
+  border-radius: 8px;
+  border: 1px solid rgba(45, 158, 66, 0.4);
+  display: block;
+}
+
+#lista-usuarios-conectados {
+  max-height: 130px;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   TARJETA FLOTANTE DE INSPECCIÓN (AL TOCAR EDIFICIO)
+   ============================================================ */
+.card-inspeccion-flotante {
+  position: absolute;
+  bottom: 84px;
+  right: 20px;
+  background: rgba(10, 25, 15, 0.96);
+  border: 1px solid rgba(45, 158, 66, 0.45);
+  border-radius: 14px;
+  padding: 14px;
+  width: 250px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  z-index: 140;
+  pointer-events: all;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.cabecera-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   border-bottom: 1px solid rgba(45, 158, 66, 0.2);
   padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+.cabecera-card span {
+  font-weight: 700;
+  color: var(--cor-secundaria);
+  font-size: 13px;
 }
 
-#conteudo-info {
+#card-detalles-edificio {
+  font-size: 11px;
   color: var(--cor-texto-dim);
   line-height: 1.6;
 }
@@ -732,14 +619,11 @@ body {
   border-radius: 6px;
   color: #000;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   transition: opacity 0.2s;
 }
-
-.btn-alquiler:hover {
-  opacity: 0.9;
-}
+.btn-alquiler:hover { opacity: 0.9; }
 
 .btn-desalojo {
   width: 100%;
@@ -749,7 +633,7 @@ body {
   border-radius: 6px;
   color: #ef9a9a;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   transition: background 0.2s;
 }
