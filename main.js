@@ -370,6 +370,7 @@ function iniciarSesionCiudadano(uid, nombre, email) {
   if (!renderizador) {
     iniciarMotor3D();
   }
+  actualizarChunksCamara(true);
 
   // Generar la ciudad si la celda central está vacía
   const centro = Math.floor(TAMANHO_GRADE / 2);
@@ -406,6 +407,7 @@ function iniciarSesionComoAdmin(usuario) {
   if (!renderizador) {
     iniciarMotor3D();
   }
+  actualizarChunksCamara(true);
 
   const centro = Math.floor(TAMANHO_GRADE / 2);
   if (estado.grade[centro][centro] === null) {
@@ -851,13 +853,13 @@ function descarregarChunk(cx, cz) {
   chunkManager.chunksCarregados.delete(id);
 }
 
-function actualizarChunksCamara() {
+function actualizarChunksCamara(inmediato = false) {
   if (!controles || !cena) return;
   const foco = controles.target;
   const { gx, gz } = mundoParaGrade(foco.x, foco.z);
   const { cx, cz } = celulaParaChunk(gx, gz);
 
-  if (cx === chunkManager.ultimoChunkCam.cx && cz === chunkManager.ultimoChunkCam.cz) {
+  if (!inmediato && cx === chunkManager.ultimoChunkCam.cx && cz === chunkManager.ultimoChunkCam.cz) {
     return;
   }
   chunkManager.ultimoChunkCam = { cx, cz };
@@ -887,7 +889,16 @@ function actualizarChunksCamara() {
   }
 
   novosChunksParaFila.sort((a, b) => a.dist - b.dist);
-  chunkManager.filaCarregamento = novosChunksParaFila;
+
+  if (inmediato) {
+    while (novosChunksParaFila.length > 0) {
+      const proximo = novosChunksParaFila.shift();
+      carregarChunk(proximo.cx, proximo.cz);
+    }
+    chunkManager.filaCarregamento = [];
+  } else {
+    chunkManager.filaCarregamento = novosChunksParaFila;
+  }
 }
 
 function procesarFilaChunks() {
@@ -1117,13 +1128,6 @@ function configurarEventosInteraccion() {
       seleccionarHerramienta('ponteiro');
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       if (estado.celulaSelecionada) {
-        eliminarObjetoLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
-        tocarSonido('demolir');
-        desenharMiniMapa();
-        mostrarNotificacion('💥 Edificio demolido.');
-      }
-    }
-  });
         eliminarObjetoLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
         tocarSonido('demolir');
         desenharMiniMapa();
@@ -1644,6 +1648,7 @@ document.getElementById('admin-limpiar-ciudad')?.addEventListener('click', () =>
       }
     }
     tocarSonido('demolir');
+    actualizarChunksCamara(true);
     desenharMiniMapa();
     guardarCiudadEnStorage(false);
     modalAdmin.style.display = 'none';
@@ -1676,6 +1681,7 @@ document.getElementById('admin-regenerar-base')?.addEventListener('click', () =>
       }
     }
     generarCiudadBase();
+    actualizarChunksCamara(true);
     tocarSonido('construir');
     desenharMiniMapa();
     guardarCiudadEnStorage(false);
@@ -1828,7 +1834,6 @@ function animar() {
    ============================================================ */
 // Se ejecuta de inmediato al cargar el script para que el visitante
 // vea el mapa 3D y la ciudad sin tener que pasar por ninguna pantalla previa.
-iniciarMotor3D();
 recuperarCiudadGuardada();
 
 const centroInicial = Math.floor(TAMANHO_GRADE / 2);
@@ -1836,6 +1841,8 @@ if (estado.grade[centroInicial][centroInicial] === null) {
   generarCiudadBase();
 }
 
+iniciarMotor3D();
+actualizarChunksCamara(true); // Carga inmediata de los chunks iniciales
 iniciarCicloAlquilerLocal();
 actualizarHUD();
 desenharMiniMapa();
