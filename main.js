@@ -948,7 +948,7 @@ function criarEtiquetaEdificio(tipo, inquilino) {
       colorBorde = '#64b5f6';
       colorTexto = '#ffffff';
     } else {
-      textoPrincipal = '🏷️ Aluga-se';
+      textoPrincipal = '🏷️ Se Alquila';
       colorFondo = 'rgba(230, 81, 0, 0.94)';
       colorBorde = '#ffb74d';
       colorTexto = '#fffde7';
@@ -1377,26 +1377,103 @@ function obtenerBarrioEn(gx, gz) {
   return null;
 }
 
-function actualizarBadgeBarrioActual() {
+let ultimoBarrioId = null;
+let timerOcultarBadgeBarrio = null;
+
+function actualizarBadgeBarrioActual(forzar = false) {
   if (!controles) return;
   const { gx, gz } = mundoParaGrade(controles.target.x, controles.target.z);
   const b = obtenerBarrioEn(gx, gz);
   const elTxt = document.getElementById('stat-bairro-nombre');
   const badge = document.getElementById('badge-bairro-contenedor');
+  if (!badge) return;
+
+  const nuevoId = b ? b.id : null;
+
+  // Si no se fuerza y el foco de cámara sigue dentro del mismo barrio, no reiniciar el timer
+  if (!forzar && nuevoId === ultimoBarrioId) {
+    return;
+  }
+
+  ultimoBarrioId = nuevoId;
+  clearTimeout(timerOcultarBadgeBarrio);
+
   if (b) {
     if (elTxt) elTxt.textContent = b.nome;
-    if (badge) {
-      badge.style.display = 'inline-flex';
-      badge.style.borderColor = b.cor || '#0288d1';
-      badge.style.color = b.cor || '#81d4fa';
-    }
+    badge.style.borderColor = b.cor || '#0288d1';
+    badge.style.color = b.cor || '#81d4fa';
+    badge.style.boxShadow = `0 0 16px ${b.cor ? b.cor + '77' : 'rgba(2, 136, 209, 0.45)'}`;
+
+    // Mostrar el badge con fade in
+    badge.classList.remove('oculto');
+    badge.classList.add('visible');
+
+    // Desvanecer suavemente después de 3 segundos con fade out
+    timerOcultarBadgeBarrio = setTimeout(() => {
+      badge.classList.remove('visible');
+      badge.classList.add('oculto');
+    }, 3000);
   } else {
-    if (elTxt) elTxt.textContent = 'Exterior';
-    if (badge) {
-      badge.style.display = 'inline-flex';
-      badge.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-      badge.style.color = 'var(--cor-texto-dim)';
-    }
+    // Si sale a zona exterior no asignada a ningún barrio, fade out
+    badge.classList.remove('visible');
+    badge.classList.add('oculto');
+  }
+}
+
+function cerrarModalBarrio() {
+  const modal = document.getElementById('modal-barrio');
+  if (modal) modal.style.display = 'none';
+  estado.barrioEditandoId = null;
+  estado.seleccionBairroInicio = null;
+  limparPreviewSeleccionBairro();
+  if (controles) controles.enabled = true;
+}
+
+function abrirModalEditarBarrio(b) {
+  if (!b) return;
+  const modal = document.getElementById('modal-barrio');
+  const titulo = document.getElementById('titulo-modal-barrio');
+  const infoCoords = document.getElementById('info-coords-barrio');
+  const inputNome = document.getElementById('campo-nombre-barrio');
+  const selectTipo = document.getElementById('campo-tipo-barrio');
+  const btnEliminar = document.getElementById('btn-eliminar-barrio');
+
+  if (!modal) return;
+
+  estado.barrioEditandoId = b.id;
+  if (titulo) titulo.textContent = '✏️ Editar Barrio';
+
+  const minGx = Math.min(b.x1, b.x2);
+  const maxGx = Math.max(b.x1, b.x2);
+  const minGz = Math.min(b.z1, b.z2);
+  const maxGz = Math.max(b.z1, b.z2);
+  const ancho = maxGx - minGx + 1;
+  const prof = maxGz - minGz + 1;
+
+  if (infoCoords) {
+    infoCoords.textContent = `Sector: (${minGx}, ${minGz}) a (${maxGx}, ${maxGz}) — ${ancho} × ${prof} celdas`;
+  }
+
+  if (inputNome) inputNome.value = b.nome;
+  if (selectTipo) selectTipo.value = b.tipo || 'Residencial';
+  colorBarrioSeleccionado = b.cor || '#2d9e42';
+
+  document.querySelectorAll('.btn-cor-bairro').forEach(btn => {
+    btn.classList.toggle('activa', btn.dataset.cor === colorBarrioSeleccionado);
+  });
+
+  if (btnEliminar) btnEliminar.style.display = 'block';
+
+  modal.dataset.minGx = minGx;
+  modal.dataset.maxGx = maxGx;
+  modal.dataset.minGz = minGz;
+  modal.dataset.maxGz = maxGz;
+
+  modal.style.display = 'flex';
+  if (controles) controles.enabled = false;
+  if (inputNome) {
+    inputNome.focus();
+    inputNome.select();
   }
 }
 
@@ -1407,6 +1484,7 @@ function abrirModalCrearBarrio(g1, g2) {
   const maxGz = Math.max(g1.gz, g2.gz);
 
   const modal = document.getElementById('modal-barrio');
+  const titulo = document.getElementById('titulo-modal-barrio');
   const infoCoords = document.getElementById('info-coords-barrio');
   const inputNome = document.getElementById('campo-nombre-barrio');
   const selectTipo = document.getElementById('campo-tipo-barrio');
@@ -1416,22 +1494,28 @@ function abrirModalCrearBarrio(g1, g2) {
 
   const anchoCeldas = maxGx - minGx + 1;
   const profCeldas = maxGz - minGz + 1;
-  infoCoords.textContent = `Región seleccionada: (${minGx}, ${minGz}) a (${maxGx}, ${maxGz}) — ${anchoCeldas} x ${profCeldas} celdas`;
+  if (infoCoords) {
+    infoCoords.textContent = `Región seleccionada: (${minGx}, ${minGz}) a (${maxGx}, ${maxGz}) — ${anchoCeldas} × ${profCeldas} celdas`;
+  }
 
   const barrioExistente = estado.bairros.find(b => 
-    (minGx >= b.x1 && maxGx <= b.x2 && minGz >= b.z1 && maxGz <= b.z2) ||
-    (b.x1 >= minGx && b.x2 <= maxGx && b.z1 >= minGz && b.z2 <= maxGz)
+    (minGx >= Math.min(b.x1, b.x2) && maxGx <= Math.max(b.x1, b.x2) && minGz >= Math.min(b.z1, b.z2) && maxGz <= Math.max(b.z1, b.z2)) ||
+    (Math.min(b.x1, b.x2) >= minGx && Math.max(b.x1, b.x2) <= maxGx && Math.min(b.z1, b.z2) >= minGz && Math.max(b.z1, b.z2) <= maxGz)
   );
 
   if (barrioExistente) {
     estado.barrioEditandoId = barrioExistente.id;
-    inputNome.value = barrioExistente.nome;
+    if (titulo) titulo.textContent = '✏️ Editar Barrio';
+    if (inputNome) inputNome.value = barrioExistente.nome;
     if (selectTipo) selectTipo.value = barrioExistente.tipo || 'Residencial';
     colorBarrioSeleccionado = barrioExistente.cor || '#2d9e42';
     if (btnEliminar) btnEliminar.style.display = 'block';
   } else {
     estado.barrioEditandoId = null;
-    inputNome.value = `Barrio ${estado.bairros.length + 1}`;
+    if (titulo) titulo.textContent = '🏷️ Delimitar y Nombrar Barrio';
+    if (inputNome) inputNome.value = `Barrio ${estado.bairros.length + 1}`;
+    if (selectTipo) selectTipo.value = 'Residencial';
+    colorBarrioSeleccionado = '#2d9e42';
     if (btnEliminar) btnEliminar.style.display = 'none';
   }
 
@@ -1445,7 +1529,11 @@ function abrirModalCrearBarrio(g1, g2) {
   modal.dataset.maxGz = maxGz;
 
   modal.style.display = 'flex';
-  inputNome.focus();
+  if (controles) controles.enabled = false;
+  if (inputNome) {
+    inputNome.focus();
+    inputNome.select();
+  }
 }
 
 /* ============================================================
@@ -1766,13 +1854,20 @@ function configurarEventosInteraccion() {
     });
   });
 
-  // Modal de Barrios: Botón Cerrar
+  // Modal de Barrios: Botones Cerrar y Cancelar
   const modalBarrio = document.getElementById('modal-barrio');
-  document.getElementById('btn-cerrar-modal-barrio')?.addEventListener('click', () => {
-    if (modalBarrio) modalBarrio.style.display = 'none';
-    estado.barrioEditandoId = null;
-    estado.seleccionBairroInicio = null;
-    limparPreviewSeleccionBairro();
+  document.getElementById('btn-cerrar-modal-barrio')?.addEventListener('click', cerrarModalBarrio);
+  document.getElementById('btn-cancelar-barrio')?.addEventListener('click', cerrarModalBarrio);
+
+  modalBarrio?.addEventListener('click', (e) => {
+    if (e.target === modalBarrio) {
+      cerrarModalBarrio();
+    }
+  });
+
+  // Bloqueo total de interacción con el fondo cuando el modal está abierto
+  ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'touchstart', 'touchend', 'touchmove', 'wheel'].forEach(evt => {
+    modalBarrio?.addEventListener(evt, e => e.stopPropagation());
   });
 
   // Modal de Barrios: Guardar / Submit
@@ -1822,14 +1917,10 @@ function configurarEventosInteraccion() {
 
     reconstruirVisualBairros3D();
     desenharMiniMapa();
-    actualizarBadgeBarrioActual();
+    actualizarBadgeBarrioActual(true);
     guardarCiudadEnStorage(false);
 
-    if (modalBarrio) modalBarrio.style.display = 'none';
-    estado.barrioEditandoId = null;
-    estado.seleccionBairroInicio = null;
-    limparPreviewSeleccionBairro();
-
+    cerrarModalBarrio();
     tocarSonido('construir');
     mostrarNotificacion(`🏷️ Barrio "${nome}" guardado exitosamente.`);
   });
@@ -1837,23 +1928,23 @@ function configurarEventosInteraccion() {
   // Modal de Barrios: Eliminar Barrio
   document.getElementById('btn-eliminar-barrio')?.addEventListener('click', () => {
     if (!estado.barrioEditandoId) return;
-    estado.bairros = estado.bairros.filter(b => b.id !== estado.barrioEditandoId);
+    const b = estado.bairros.find(bar => bar.id === estado.barrioEditandoId);
+    const nom = b ? b.nome : 'el barrio';
+    if (!confirm(`¿Confirmas que deseas eliminar ${nom}?`)) return;
+
+    estado.bairros = estado.bairros.filter(bar => bar.id !== estado.barrioEditandoId);
     try {
       localStorage.setItem('katuete_global_bairros', JSON.stringify(estado.bairros));
     } catch(err) {}
 
     reconstruirVisualBairros3D();
     desenharMiniMapa();
-    actualizarBadgeBarrioActual();
+    actualizarBadgeBarrioActual(true);
     guardarCiudadEnStorage(false);
 
-    if (modalBarrio) modalBarrio.style.display = 'none';
-    estado.barrioEditandoId = null;
-    estado.seleccionBairroInicio = null;
-    limparPreviewSeleccionBairro();
-
+    cerrarModalBarrio();
     tocarSonido('demolir');
-    mostrarNotificacion('🗑️ Barrio eliminado.');
+    mostrarNotificacion(`🗑️ ${nom} ha sido eliminado del plano.`);
   });
 
   // Sub-Pestañas de Categorías de Construcción
@@ -1944,6 +2035,13 @@ function procesarClicEnGrilla(gx, gz) {
       return;
     }
     if (!estado.seleccionBairroInicio) {
+      // Si hace clic sobre un barrio ya existente, lo abre directamente para editarlo o eliminarlo
+      const barrioExistente = obtenerBarrioEn(gx, gz);
+      if (barrioExistente) {
+        abrirModalEditarBarrio(barrioExistente);
+        return;
+      }
+
       estado.seleccionBairroInicio = { gx, gz };
       actualizarPreviewSeleccionBairro(gx, gz);
       tocarSonido('construir');
@@ -2170,13 +2268,21 @@ function mostrarDetallesCelula(gx, gz) {
 
   const barrio = obtenerBarrioEn(gx, gz);
   const infoBarrio = barrio 
-    ? `<span style="color:${barrio.cor || '#81d4fa'}">📍 Barrio: <strong>${barrio.nome}</strong> (${barrio.tipo || 'Zona'})</span><br/>`
+    ? `<span style="color:${barrio.cor || '#81d4fa'}">📍 Barrio: <strong>${barrio.nome}</strong> (${barrio.tipo || 'Zona'})</span>${jugadorLocal.esAdmin ? ` <button type="button" class="btn-editar-barrio-inline" style="background:rgba(255,255,255,0.08); border:1px solid ${barrio.cor || '#81d4fa'}; color:${barrio.cor || '#81d4fa'}; border-radius:12px; font-size:10px; padding:2px 7px; cursor:pointer; margin-left:5px;">✏️ Editar</button>` : ''}<br/>`
     : `<span style="color:var(--cor-texto-dim)">📍 Sector sin barrio asignado</span><br/>`;
 
   if (!celda) {
     titulo.textContent = '🌿 Terreno Libre';
     detalles.innerHTML = `Sector: (${gx}, ${gz})<br/>${infoBarrio}<small>Selecciona 'Construir' en el menú inferior para edificar.</small>`;
     card.style.display = 'block';
+    const btnEdit = card.querySelector('.btn-editar-barrio-inline');
+    if (btnEdit && barrio) {
+      btnEdit.onclick = (e) => {
+        e.stopPropagation();
+        card.style.display = 'none';
+        abrirModalEditarBarrio(barrio);
+      };
+    }
     return;
   }
 
@@ -2195,6 +2301,15 @@ function mostrarDetallesCelula(gx, gz) {
   `;
 
   card.style.display = 'block';
+
+  const btnEdit = card.querySelector('.btn-editar-barrio-inline');
+  if (btnEdit && barrio) {
+    btnEdit.onclick = (e) => {
+      e.stopPropagation();
+      card.style.display = 'none';
+      abrirModalEditarBarrio(barrio);
+    };
+  }
 
   if (esVivienda) {
     zonaAcciones.style.display = 'block';
@@ -2357,14 +2472,27 @@ const btnCerrarAdmin = document.getElementById('admin-cerrar-modal');
 if (btnAbrirAdmin && modalAdmin) {
   btnAbrirAdmin.addEventListener('click', () => {
     modalAdmin.style.display = 'flex';
+    if (controles) controles.enabled = false;
   });
 }
 
 if (btnCerrarAdmin && modalAdmin) {
   btnCerrarAdmin.addEventListener('click', () => {
     modalAdmin.style.display = 'none';
+    if (controles) controles.enabled = true;
   });
 }
+
+modalAdmin?.addEventListener('click', (e) => {
+  if (e.target === modalAdmin) {
+    modalAdmin.style.display = 'none';
+    if (controles) controles.enabled = true;
+  }
+});
+
+['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'touchstart', 'touchend', 'touchmove', 'wheel'].forEach(evt => {
+  modalAdmin?.addEventListener(evt, e => e.stopPropagation());
+});
 
 // Acciones Administrativas
 document.getElementById('admin-activar-bairros')?.addEventListener('click', () => {

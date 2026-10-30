@@ -341,8 +341,8 @@
     <div id="modal-barrio" class="modal-flotante" style="display: none;">
       <div class="login-container-mini modal-barrio-box">
         <div class="cabecera-modal-mini">
-          <h3>🏷️ Delimitar y Nombrar Barrio</h3>
-          <button id="btn-cerrar-modal-barrio" class="btn-cerrar-mini" type="button">✖</button>
+          <h3 id="titulo-modal-barrio">🏷️ Delimitar y Nombrar Barrio</h3>
+          <button id="btn-cerrar-modal-barrio" class="btn-cerrar-mini" type="button" title="Cerrar ventana">✖</button>
         </div>
         <form id="form-barrio">
           <p class="subtitulo-barrio" id="info-coords-barrio">Sector: (0, 0) a (0, 0)</p>
@@ -375,6 +375,7 @@
 
           <div class="botones-auth-apilados">
             <button type="submit" class="btn-login-principal" id="btn-guardar-barrio">💾 Guardar Barrio</button>
+            <button type="button" class="btn-secundario-completo" id="btn-cancelar-barrio">✖ Cancelar</button>
             <button type="button" class="btn-secundario-completo" id="btn-eliminar-barrio" style="display:none; color:#ef9a9a; border-color:#ef5350;">🗑️ Eliminar Barrio</button>
           </div>
         </form>
