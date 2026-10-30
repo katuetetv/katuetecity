@@ -196,6 +196,7 @@ body {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  touch-action: none;
 }
 
 #canvas-jogo.modo-construir {
@@ -776,4 +777,232 @@ kbd {
 
 #notificacao.visivel {
   opacity: 1;
+}
+
+/* ============================================================
+   BOTONES DE ROTACIÓN Y CÁMARA (MÓVIL & ESCRITORIO)
+   ============================================================ */
+.btn-topo-rotacion {
+  background: rgba(45, 158, 66, 0.2);
+  border: 1px solid rgba(45, 158, 66, 0.4);
+  border-radius: 20px;
+  color: #c8e6c9;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-topo-rotacion.visivel {
+  display: inline-flex;
+}
+.btn-topo-rotacion:hover, .btn-topo-rotacion:active {
+  background: rgba(45, 158, 66, 0.4);
+  color: #fff;
+  border-color: var(--cor-secundaria);
+}
+
+#controles-camara-flotantes {
+  position: absolute;
+  top: 70px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 120;
+  pointer-events: all;
+}
+
+.btn-ctrl-cam {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--cor-painel);
+  border: 1px solid rgba(45, 158, 66, 0.45);
+  color: #ffffff;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s, background 0.2s, border-color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-ctrl-cam:hover, .btn-ctrl-cam:active {
+  background: rgba(45, 158, 66, 0.35);
+  transform: scale(1.08);
+  border-color: var(--cor-secundaria);
+}
+
+.btn-flotante-rotar {
+  position: absolute;
+  right: 16px;
+  bottom: 84px;
+  background: linear-gradient(135deg, #1a6b2a, #2d9e42);
+  border: 1px solid #81c784;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 150;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  pointer-events: all;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  -webkit-tap-highlight-color: transparent;
+  animation: pulseRotate 2.5s infinite ease-in-out;
+}
+.btn-flotante-rotar:active {
+  transform: scale(0.95);
+}
+@keyframes pulseRotate {
+  0%, 100% { box-shadow: 0 4px 16px rgba(45, 158, 66, 0.4); }
+  50% { box-shadow: 0 4px 22px rgba(45, 158, 66, 0.7); }
+}
+
+/* ============================================================
+   RESPONSIVIDAD MÓVIL ADAPTATIVA (SMARTPHONES & TABLETS)
+   ============================================================ */
+@media (max-width: 768px) {
+  #barra-topo {
+    height: auto;
+    min-height: 48px;
+    padding: 6px 10px;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  #barra-topo::-webkit-scrollbar {
+    display: none;
+  }
+
+  #titulo-jogo {
+    font-size: 15px;
+    letter-spacing: 1px;
+  }
+
+  .stat-item {
+    font-size: 11px;
+    gap: 4px;
+  }
+  .stat-item .valor {
+    font-size: 12px;
+  }
+
+  .user-badge {
+    max-width: 110px;
+    padding: 3px 8px;
+  }
+
+  .oikos-badge {
+    padding: 3px 8px;
+  }
+
+  .separador-topo {
+    display: none;
+  }
+
+  .btn-topo {
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .btn-topo-rotacion .rot-txt {
+    display: none;
+  }
+  .btn-topo-rotacion kbd {
+    display: none;
+  }
+
+  #controles-camara-flotantes {
+    top: 56px;
+    right: 10px;
+    gap: 6px;
+  }
+  .btn-ctrl-cam {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+
+  #dock-menu-inferior {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: calc(100% - 16px);
+    max-width: 440px;
+    padding: 4px 6px;
+    gap: 2px;
+    justify-content: space-around;
+    border-radius: 20px;
+  }
+
+  .btn-dock {
+    flex: 1;
+    padding: 6px 2px;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: 12px;
+  }
+  .btn-dock .icono-dock {
+    font-size: 16px;
+  }
+  .btn-dock .etiqueta-dock {
+    font-size: 9px;
+    letter-spacing: -0.2px;
+  }
+
+  .panel-menu-flotante {
+    bottom: calc(66px + env(safe-area-inset-bottom, 8px));
+    width: calc(100% - 16px);
+    max-width: 380px;
+    max-height: 58vh;
+    padding: 14px 12px;
+    border-radius: 14px;
+  }
+
+  .grid-catalogo {
+    max-height: 200px;
+  }
+  .item-catalogo {
+    padding: 8px 10px;
+  }
+  .icono-cat {
+    font-size: 22px;
+  }
+
+  .contenido-menu-ciudad {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .card-inspeccion-flotante {
+    bottom: calc(66px + env(safe-area-inset-bottom, 8px));
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: 320px;
+    margin: 0 auto;
+    padding: 12px;
+  }
+
+  .btn-flotante-rotar {
+    bottom: calc(68px + env(safe-area-inset-bottom, 8px));
+    right: 12px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  #notificacao {
+    bottom: calc(72px + env(safe-area-inset-bottom, 8px));
+    padding: 6px 16px;
+    font-size: 11px;
+    max-width: 90vw;
+  }
 }

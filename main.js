@@ -50,8 +50,13 @@ const jugadorLocal = {
   casasAlquiladas: []
 };
 
-const TAMANHO_GRADE = 40;
+const TAMANHO_GRADE = 400; // Mapa 10x más grande (1.6 km x 1.6 km)
 const TAMANHO_CELULA = 4;
+const CHUNK_SIZE = 20;     // 20x20 celdas por chunk = 20x20 chunks = 400 chunks
+const TOTAL_CHUNKS_EIXO = TAMANHO_GRADE / CHUNK_SIZE; // 20 chunks
+const RAIO_CHUNKS = 2;     // Radio de carga alrededor de la cámara (5x5 chunks = 25 chunks activos)
+const MAX_CHUNKS_POR_FRAME = 2; // Carga gradual sin tirones
+
 const COSTO_ALQUILER_CICLO = 150;
 const SALARIO_TURNO_OIKOS = 350;
 
@@ -72,16 +77,32 @@ const estado = {
   rotacaoAtual: 0,
   celulaSelecionada: null,
   grade: [], // [z][x] -> { tipo, rot, mesh, inquilino, autor }
-  objetos3D: [],
   arrastandoEstrada: false,
   inicioArrasto: null
 };
 
 for (let z = 0; z < TAMANHO_GRADE; z++) {
-  estado.grade[z] = [];
-  for (let x = 0; x < TAMANHO_GRADE; x++) {
-    estado.grade[z][x] = null;
-  }
+  estado.grade[z] = new Array(TAMANHO_GRADE).fill(null);
+}
+
+/* ============================================================
+   SISTEMA DE GESTIÓN Y CARGA GRADUAL DE CHUNKS
+   ============================================================ */
+const chunkManager = {
+  chunksCarregados: new Map(), // "cx_cz" -> { cx, cz, grupo }
+  filaCarregamento: [],        // [ { cx, cz, dist } ]
+  ultimoChunkCam: { cx: -999, cz: -999 }
+};
+
+function celulaParaChunk(gx, gz) {
+  return {
+    cx: Math.floor(gx / CHUNK_SIZE),
+    cz: Math.floor(gz / CHUNK_SIZE)
+  };
+}
+
+function obtenerIdChunk(cx, cz) {
+  return `${cx}_${cz}`;
 }
 
 /* ============================================================
@@ -398,24 +419,40 @@ function iniciarSesionComoAdmin(usuario) {
 }
 
 function generarCiudadBase() {
-  const c = Math.floor(TAMANHO_GRADE / 2);
+  const c = Math.floor(TAMANHO_GRADE / 2); // 200 en mapa de 400
 
-  // Avenidas centrales
-  for (let x = c - 7; x <= c + 7; x++) instanciarObjetoLocal('estrada', x, c, 0, null, 'Municipio');
-  for (let z = c - 7; z <= c + 7; z++) instanciarObjetoLocal('estrada', c, z, 0, null, 'Municipio');
+  // Avenidas centrales cruzadas
+  for (let x = c - 16; x <= c + 16; x++) instanciarObjetoLocal('estrada', x, c, 0, null, 'Municipio');
+  for (let z = c - 16; z <= c + 16; z++) instanciarObjetoLocal('estrada', c, z, 0, null, 'Municipio');
 
-  // Viviendas disponibles para alquilar
-  instanciarObjetoLocal('casa', c - 2, c - 2, 0, null, 'Municipio');
-  instanciarObjetoLocal('sobrado', c - 2, c + 2, 0, null, 'Municipio');
-  instanciarObjetoLocal('casa', c + 2, c - 2, 0, null, 'Municipio');
-  instanciarObjetoLocal('predio', c + 2, c + 2, 0, null, 'Municipio');
+  // Calles conectoras de cuadrículas
+  for (let x = c - 16; x <= c + 16; x++) {
+    instanciarObjetoLocal('estrada', x, c - 8, 0, null, 'Municipio');
+    instanciarObjetoLocal('estrada', x, c + 8, 0, null, 'Municipio');
+  }
+  for (let z = c - 16; z <= c + 16; z++) {
+    instanciarObjetoLocal('estrada', c - 8, z, 0, null, 'Municipio');
+    instanciarObjetoLocal('estrada', c + 8, z, 0, null, 'Municipio');
+  }
 
-  // Servicios y comercios
-  instanciarObjetoLocal('loja', c - 4, c - 3, 0, null, 'Municipio');
-  instanciarObjetoLocal('posto', c + 4, c + 3, 0, null, 'Municipio');
-  instanciarObjetoLocal('parque', c + 3, c - 4, 0, null, 'Municipio');
-  instanciarObjetoLocal('usina', c - 5, c + 4, 0, null, 'Municipio');
-  instanciarObjetoLocal('caixaDAgua', c + 5, c + 4, 0, null, 'Municipio');
+  // Viviendas iniciales en los cuatro cuadrantes
+  instanciarObjetoLocal('casa', c - 3, c - 3, 0, null, 'Municipio');
+  instanciarObjetoLocal('casa', c - 5, c - 3, 0, null, 'Municipio');
+  instanciarObjetoLocal('sobrado', c - 3, c + 3, 0, null, 'Municipio');
+  instanciarObjetoLocal('sobrado', c - 5, c + 3, 0, null, 'Municipio');
+  instanciarObjetoLocal('casa', c + 3, c - 3, 0, null, 'Municipio');
+  instanciarObjetoLocal('casa', c + 5, c - 3, 0, null, 'Municipio');
+  instanciarObjetoLocal('predio', c + 3, c + 3, 0, null, 'Municipio');
+  instanciarObjetoLocal('predio', c + 5, c + 3, 0, null, 'Municipio');
+
+  // Servicios, comercios y reservas públicas
+  instanciarObjetoLocal('loja', c - 4, c - 5, 0, null, 'Municipio');
+  instanciarObjetoLocal('loja', c + 4, c - 5, 0, null, 'Municipio');
+  instanciarObjetoLocal('posto', c + 4, c + 5, 0, null, 'Municipio');
+  instanciarObjetoLocal('parque', c + 3, c - 11, 0, null, 'Municipio');
+  instanciarObjetoLocal('parque', c - 3, c - 11, 0, null, 'Municipio');
+  instanciarObjetoLocal('usina', c - 11, c + 11, 0, null, 'Municipio');
+  instanciarObjetoLocal('caixaDAgua', c + 11, c + 11, 0, null, 'Municipio');
 }
 
 /* ============================================================
@@ -425,6 +462,8 @@ let cena, camera, renderizador, controles;
 let planoChaoInvisivel;
 let fantasmaObjeto = null;
 let grupoPreviewEstrada = null;
+let gridHelper = null;
+let luzSol = null;
 
 function iniciarMotor3D() {
   const canvas = document.getElementById('canvas-jogo');
@@ -437,33 +476,35 @@ function iniciarMotor3D() {
   renderizador.setClearColor(0x82b1ff);
 
   cena = new THREE.Scene();
-  cena.fog = new THREE.Fog(0x82b1ff, 120, 360);
+  cena.fog = new THREE.Fog(0x82b1ff, 200, 520);
 
-  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 3000);
   camera.position.set(65, 80, 85);
 
   configurarIluminacao();
   criarTerreno();
 
   const total = TAMANHO_GRADE * TAMANHO_CELULA;
-  const geoPlano = new THREE.PlaneGeometry(total * 2, total * 2);
+  const geoPlano = new THREE.PlaneGeometry(total * 2.5, total * 2.5);
   planoChaoInvisivel = new THREE.Mesh(geoPlano, new THREE.MeshBasicMaterial({ visible: false }));
   planoChaoInvisivel.rotation.x = -Math.PI / 2;
   cena.add(planoChaoInvisivel);
-
-  criarLinhasGrade();
 
   controles = new THREE.OrbitControls(camera, canvas);
   controles.enableDamping = true;
   controles.dampingFactor = 0.08;
   controles.screenSpacePanning = true;
-  controles.minDistance = 15;
-  controles.maxDistance = 220;
+  controles.minDistance = 10;
+  controles.maxDistance = 500;
   controles.maxPolarAngle = Math.PI / 2.15;
   controles.mouseButtons = {
     LEFT: THREE.MOUSE.ROTATE,
     MIDDLE: THREE.MOUSE.DOLLY,
     RIGHT: THREE.MOUSE.PAN
+  };
+  controles.touches = {
+    ONE: THREE.TOUCH.ROTATE,
+    TWO: THREE.TOUCH.DOLLY_PAN
   };
 
   configurarEventosInteraccion();
@@ -474,20 +515,21 @@ function configurarIluminacao() {
   const luzAmbiente = new THREE.AmbientLight(0xffffff, 0.65);
   cena.add(luzAmbiente);
 
-  const luzSol = new THREE.DirectionalLight(0xfff5e6, 1.15);
+  luzSol = new THREE.DirectionalLight(0xfff5e6, 1.15);
   luzSol.position.set(80, 130, 70);
   luzSol.castShadow = true;
   luzSol.shadow.mapSize.width = 2048;
   luzSol.shadow.mapSize.height = 2048;
   luzSol.shadow.camera.near = 10;
-  luzSol.shadow.camera.far = 400;
-  const d = 110;
+  luzSol.shadow.camera.far = 450;
+  const d = 140;
   luzSol.shadow.camera.left = -d;
   luzSol.shadow.camera.right = d;
   luzSol.shadow.camera.top = d;
   luzSol.shadow.camera.bottom = -d;
   luzSol.shadow.bias = -0.0008;
   cena.add(luzSol);
+  cena.add(luzSol.target);
 
   const hemi = new THREE.HemisphereLight(0x90caf9, 0x43a047, 0.35);
   cena.add(hemi);
@@ -496,44 +538,32 @@ function configurarIluminacao() {
 function criarTerreno() {
   const total = TAMANHO_GRADE * TAMANHO_CELULA;
 
-  const geoGramaFora = new THREE.PlaneGeometry(total * 3, total * 3);
-  const matGramaFora = new THREE.MeshLambertMaterial({ color: 0x388e3c });
+  // Terreno exterior verde
+  const geoGramaFora = new THREE.PlaneGeometry(total * 2.5, total * 2.5);
+  const matGramaFora = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
   const meshFora = new THREE.Mesh(geoGramaFora, matGramaFora);
   meshFora.rotation.x = -Math.PI / 2;
   meshFora.position.y = -0.08;
   meshFora.receiveShadow = true;
   cena.add(meshFora);
 
+  // Terreno central de la ciudad
   const geoChao = new THREE.PlaneGeometry(total, total);
-  const matChao = new THREE.MeshLambertMaterial({ color: 0x4caf50 });
+  const matChao = new THREE.MeshLambertMaterial({ color: 0x43a047 });
   const chao = new THREE.Mesh(geoChao, matChao);
   chao.rotation.x = -Math.PI / 2;
   chao.position.y = -0.02;
   chao.receiveShadow = true;
   cena.add(chao);
-}
 
-function criarLinhasGrade() {
-  const total = TAMANHO_GRADE * TAMANHO_CELULA;
-  const mat = new THREE.LineBasicMaterial({ color: 0x2e7d32, transparent: true, opacity: 0.25 });
-  const grupo = new THREE.Group();
-
-  for (let i = 0; i <= TAMANHO_GRADE; i++) {
-    const p = i * TAMANHO_CELULA - total / 2;
-    const geoH = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-total / 2, 0, p),
-      new THREE.Vector3(total / 2, 0, p)
-    ]);
-    grupo.add(new THREE.Line(geoH, mat));
-
-    const geoV = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(p, 0, -total / 2),
-      new THREE.Vector3(p, 0, total / 2)
-    ]);
-    grupo.add(new THREE.Line(geoV, mat));
-  }
-  grupo.position.y = 0.02;
-  cena.add(grupo);
+  // Cuadrícula dinámica de construcción que sigue a la cámara
+  const tamanhoGradeVisivel = 160;
+  const divisoes = 40;
+  gridHelper = new THREE.GridHelper(tamanhoGradeVisivel, divisoes, 0x1b5e20, 0x2e7d32);
+  gridHelper.position.y = 0.04;
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.35;
+  cena.add(gridHelper);
 }
 
 function mundoParaGrade(wx, wz) {
@@ -738,14 +768,10 @@ function criarEstradaMesh(gx, gz) {
 }
 
 /* ============================================================
-   8. GESTIÓN DEL MAPA
+   8. GESTIÓN DEL MAPA Y RENDERIZADO DE CHUNKS
    ============================================================ */
-function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 'Municipio') {
-  if (!celulaValida(gx, gz)) return;
-  eliminarObjetoLocal(gx, gz);
-
+function criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino = null, autor = 'Municipio') {
   let mesh = null;
-  const rotRad = (rot * Math.PI) / 180;
   const { x, z } = gradeParaMundo(gx, gz);
 
   switch (tipo) {
@@ -758,39 +784,186 @@ function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 
     case 'parque': mesh = criarParque(); break;
     case 'usina': mesh = criarUsina(rotRad); break;
     case 'caixaDAgua': mesh = criarCaixaDAgua(); break;
-    default: return;
+    default: return null;
   }
 
-  if (tipo !== 'estrada') {
+  if (tipo !== 'estrada' && mesh) {
     mesh.position.set(x, 0, z);
   }
 
-  mesh.userData = { tipo, gx, gz, rot, inquilino, autor };
-  cena.add(mesh);
+  if (mesh) {
+    mesh.userData = { tipo, gx, gz, rot: (rotRad * 180) / Math.PI, inquilino, autor };
+  }
+  return mesh;
+}
 
-  estado.grade[gz][gx] = { tipo, rot, mesh, inquilino, autor };
-  estado.objetos3D.push(mesh);
+function carregarChunk(cx, cz) {
+  const id = obtenerIdChunk(cx, cz);
+  if (chunkManager.chunksCarregados.has(id)) return;
+  if (cx < 0 || cz < 0 || cx >= TOTAL_CHUNKS_EIXO || cz >= TOTAL_CHUNKS_EIXO) return;
+
+  const grupo = new THREE.Group();
+  const startX = cx * CHUNK_SIZE;
+  const endX = Math.min(TAMANHO_GRADE, startX + CHUNK_SIZE);
+  const startZ = cz * CHUNK_SIZE;
+  const endZ = Math.min(TAMANHO_GRADE, startZ + CHUNK_SIZE);
+
+  for (let z = startZ; z < endZ; z++) {
+    for (let x = startX; x < endX; x++) {
+      const item = estado.grade[z]?.[x];
+      if (item) {
+        const rotRad = ((item.rot || 0) * Math.PI) / 180;
+        const mesh = criarMeshParaTipo(item.tipo, rotRad, x, z, item.inquilino, item.autor);
+        if (mesh) {
+          item.mesh = mesh;
+          grupo.add(mesh);
+        }
+      }
+    }
+  }
+
+  cena.add(grupo);
+  chunkManager.chunksCarregados.set(id, { cx, cz, grupo });
+}
+
+function descarregarChunk(cx, cz) {
+  const id = obtenerIdChunk(cx, cz);
+  const ch = chunkManager.chunksCarregados.get(id);
+  if (!ch) return;
+
+  if (ch.grupo && ch.grupo.parent) {
+    ch.grupo.parent.remove(ch.grupo);
+  }
+
+  const startX = cx * CHUNK_SIZE;
+  const endX = Math.min(TAMANHO_GRADE, startX + CHUNK_SIZE);
+  const startZ = cz * CHUNK_SIZE;
+  const endZ = Math.min(TAMANHO_GRADE, startZ + CHUNK_SIZE);
+
+  for (let z = startZ; z < endZ; z++) {
+    for (let x = startX; x < endX; x++) {
+      if (estado.grade[z]?.[x]) {
+        estado.grade[z][x].mesh = null;
+      }
+    }
+  }
+
+  chunkManager.chunksCarregados.delete(id);
+}
+
+function actualizarChunksCamara() {
+  if (!controles || !cena) return;
+  const foco = controles.target;
+  const { gx, gz } = mundoParaGrade(foco.x, foco.z);
+  const { cx, cz } = celulaParaChunk(gx, gz);
+
+  if (cx === chunkManager.ultimoChunkCam.cx && cz === chunkManager.ultimoChunkCam.cz) {
+    return;
+  }
+  chunkManager.ultimoChunkCam = { cx, cz };
+
+  const desiredSet = new Set();
+  const novosChunksParaFila = [];
+
+  for (let dz = -RAIO_CHUNKS; dz <= RAIO_CHUNKS; dz++) {
+    for (let dx = -RAIO_CHUNKS; dx <= RAIO_CHUNKS; dx++) {
+      const ncx = cx + dx;
+      const ncz = cz + dz;
+      if (ncx >= 0 && ncx < TOTAL_CHUNKS_EIXO && ncz >= 0 && ncz < TOTAL_CHUNKS_EIXO) {
+        const id = obtenerIdChunk(ncx, ncz);
+        desiredSet.add(id);
+        if (!chunkManager.chunksCarregados.has(id)) {
+          const distSq = dx * dx + dz * dz;
+          novosChunksParaFila.push({ cx: ncx, cz: ncz, dist: distSq });
+        }
+      }
+    }
+  }
+
+  for (const [id, ch] of chunkManager.chunksCarregados.entries()) {
+    if (!desiredSet.has(id)) {
+      descarregarChunk(ch.cx, ch.cz);
+    }
+  }
+
+  novosChunksParaFila.sort((a, b) => a.dist - b.dist);
+  chunkManager.filaCarregamento = novosChunksParaFila;
+}
+
+function procesarFilaChunks() {
+  if (chunkManager.filaCarregamento.length === 0) return;
+  for (let i = 0; i < MAX_CHUNKS_POR_FRAME && chunkManager.filaCarregamento.length > 0; i++) {
+    const proximo = chunkManager.filaCarregamento.shift();
+    carregarChunk(proximo.cx, proximo.cz);
+  }
+}
+
+function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 'Municipio') {
+  if (!celulaValida(gx, gz)) return;
+  eliminarObjetoLocal(gx, gz);
+
+  const rotRad = (rot * Math.PI) / 180;
+  estado.grade[gz][gx] = { tipo, rot, mesh: null, inquilino, autor };
+
+  const { cx, cz } = celulaParaChunk(gx, gz);
+  const ch = chunkManager.chunksCarregados.get(obtenerIdChunk(cx, cz));
+  if (ch) {
+    const mesh = criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino, autor);
+    if (mesh) {
+      estado.grade[gz][gx].mesh = mesh;
+      ch.grupo.add(mesh);
+    }
+  }
 }
 
 function eliminarObjetoLocal(gx, gz) {
   if (!celulaValida(gx, gz)) return;
-  const celda = estado.grade[gz][gx];
-  if (celda && celda.mesh) {
-    cena.remove(celda.mesh);
-    const idx = estado.objetos3D.indexOf(celda.mesh);
-    if (idx !== -1) estado.objetos3D.splice(idx, 1);
+  const celda = estado.grade[gz]?.[gx];
+  if (celda) {
+    if (celda.mesh && celda.mesh.parent) {
+      celda.mesh.parent.remove(celda.mesh);
+    }
     estado.grade[gz][gx] = null;
   }
 }
 
 /* ============================================================
-   9. INTERACCIÓN Y CONSTRUCCIÓN
+   9. INTERACCIÓN Y CONSTRUCCIÓN (MÓVIL TOUCH & RATÓN DESKTOP)
    ============================================================ */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 let pointerDownX = 0;
 let pointerDownY = 0;
-const DISTANCIA_CLIQUE_MAX_PX = 6;
+const DISTANCIA_CLIQUE_MAX_PX = 8;
+
+function rotarHerramienta() {
+  estado.rotacaoAtual = (estado.rotacaoAtual + 90) % 360;
+  const texto = `${estado.rotacaoAtual}°`;
+  const elRot = document.getElementById('valor-rotacao');
+  if (elRot) elRot.textContent = texto;
+  const elRotTouch = document.getElementById('valor-rotacao-touch');
+  if (elRotTouch) elRotTouch.textContent = texto;
+  tocarSonido('construir');
+}
+
+function recentrarCamara() {
+  if (controles) {
+    controles.target.set(0, 0, 0);
+    camera.position.set(65, 80, 85);
+    controles.update();
+    tocarSonido('monedas');
+    mostrarNotificacion('🎯 Vista recentrada en el núcleo de la ciudad');
+  }
+}
+
+function zoomCamara(delta) {
+  if (!camera || !controles) return;
+  const dir = new THREE.Vector3().subVectors(camera.position, controles.target).normalize();
+  const dist = camera.position.distanceTo(controles.target);
+  const nuevaDist = Math.max(controles.minDistance, Math.min(controles.maxDistance, dist + delta));
+  camera.position.copy(controles.target).addScaledVector(dir, nuevaDist);
+  controles.update();
+}
 
 function configurarEventosInteraccion() {
   const canvas = document.getElementById('canvas-jogo');
@@ -801,12 +974,71 @@ function configurarEventosInteraccion() {
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
+  function actualizarCoordenadasPorPixel(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
   function obtenerInterseccionChao() {
     raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObject(planoChaoInvisivel);
     return hits.length > 0 ? hits[0].point : null;
   }
 
+  // --- CONTROL TÁCTIL MÓVIL OPTIMIZADO ---
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let touchArrastrado = false;
+  let esMultiTouch = false;
+
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) {
+      esMultiTouch = true;
+      limparFantasma();
+    } else if (e.touches.length === 1) {
+      esMultiTouch = false;
+      touchArrastrado = false;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchStartTime = Date.now();
+      actualizarCoordenadasPorPixel(touchStartX, touchStartY);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) {
+      esMultiTouch = true;
+      limparFantasma();
+    } else if (e.touches.length === 1) {
+      const dx = e.touches[0].clientX - touchStartX;
+      const dy = e.touches[0].clientY - touchStartY;
+      if (Math.hypot(dx, dy) > 12) {
+        touchArrastrado = true;
+      }
+      actualizarCoordenadasPorPixel(e.touches[0].clientX, e.touches[0].clientY);
+      const pt = obtenerInterseccionChao();
+      if (pt && !touchArrastrado && estado.ferramentaAtiva !== 'ponteiro' && estado.ferramentaAtiva !== 'demolir') {
+        const { gx, gz } = mundoParaGrade(pt.x, pt.z);
+        actualizarPreviewFantasma(gx, gz);
+      }
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', (e) => {
+    if (!esMultiTouch && !touchArrastrado && (Date.now() - touchStartTime) < 380) {
+      actualizarCoordenadasPorPixel(touchStartX, touchStartY);
+      const pt = obtenerInterseccionChao();
+      if (pt) {
+        const { gx, gz } = mundoParaGrade(pt.x, pt.z);
+        procesarClicEnGrilla(gx, gz);
+      }
+    }
+    limparFantasma();
+  });
+
+  // --- CONTROL CON RATÓN (DESKTOP) ---
   canvas.addEventListener('mousemove', (e) => {
     actualizarCoordenadasMouse(e);
     const pt = obtenerInterseccionChao();
@@ -826,6 +1058,7 @@ function configurarEventosInteraccion() {
   });
 
   canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') return; // Procesado por eventos táctiles
     if (e.button === 0) {
       pointerDownX = e.clientX;
       pointerDownY = e.clientY;
@@ -839,6 +1072,7 @@ function configurarEventosInteraccion() {
   });
 
   canvas.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'touch') return;
     if (e.button !== 0) return;
     const dx = e.clientX - pointerDownX;
     const dy = e.clientY - pointerDownY;
@@ -869,15 +1103,27 @@ function configurarEventosInteraccion() {
     }
   });
 
+  // Botones de cámara y rotación
+  document.getElementById('btn-rotar-touch')?.addEventListener('click', rotarHerramienta);
+  document.getElementById('indicador-rotacao')?.addEventListener('click', rotarHerramienta);
+  document.getElementById('btn-cam-recentrar')?.addEventListener('click', recentrarCamara);
+  document.getElementById('btn-cam-zoom-in')?.addEventListener('click', () => zoomCamara(-30));
+  document.getElementById('btn-cam-zoom-out')?.addEventListener('click', () => zoomCamara(30));
+
   window.addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') {
-      estado.rotacaoAtual = (estado.rotacaoAtual + 90) % 360;
-      document.getElementById('valor-rotacao').textContent = estado.rotacaoAtual + '°';
-      tocarSonido('construir');
+      rotarHerramienta();
     } else if (e.key === 'Escape') {
       seleccionarHerramienta('ponteiro');
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       if (estado.celulaSelecionada) {
+        eliminarObjetoLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
+        tocarSonido('demolir');
+        desenharMiniMapa();
+        mostrarNotificacion('💥 Edificio demolido.');
+      }
+    }
+  });
         eliminarObjetoLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
         tocarSonido('demolir');
         desenharMiniMapa();
@@ -1253,8 +1499,10 @@ function seleccionarHerramienta(nome) {
   });
 
   const indRot = document.getElementById('indicador-rotacao');
+  const btnRotarTouch = document.getElementById('btn-rotar-touch');
   const precisaRot = ['casa', 'sobrado', 'predio', 'loja', 'posto', 'usina'].includes(nome);
   if (indRot) indRot.classList.toggle('visivel', precisaRot);
+  if (btnRotarTouch) btnRotarTouch.style.display = precisaRot ? 'flex' : 'none';
 
   const canvas = document.getElementById('canvas-jogo');
   if (canvas) {
@@ -1486,35 +1734,90 @@ function desenharMiniMapa() {
   const h = canvas.height;
   const px = w / TAMANHO_GRADE;
 
-  ctx.fillStyle = '#2e7d32';
+  ctx.fillStyle = '#1b5e20';
   ctx.fillRect(0, 0, w, h);
 
   const colores = {
-    estrada: '#263238',
+    estrada: '#37474f',
     casa: '#ffb74d',
     sobrado: '#0288d1',
-    predio: '#78909c',
+    predio: '#90a4ae',
     loja: '#fbc02d',
     posto: '#e53935',
-    parque: '#1b5e20',
-    usina: '#455a64',
+    parque: '#2e7d32',
+    usina: '#546e7a',
     caixaDAgua: '#00acc1'
   };
 
   for (let z = 0; z < TAMANHO_GRADE; z++) {
     for (let x = 0; x < TAMANHO_GRADE; x++) {
-      const item = estado.grade[z][x];
+      const item = estado.grade[z]?.[x];
       if (item && colores[item.tipo]) {
         ctx.fillStyle = colores[item.tipo];
-        ctx.fillRect(x * px, z * px, px, px);
+        ctx.fillRect(
+          Math.floor(x * px),
+          Math.floor(z * px),
+          Math.max(1, Math.ceil(px * 2)),
+          Math.max(1, Math.ceil(px * 2))
+        );
       }
     }
   }
+
+  // Cuadro indicador de visión de la cámara en el mapa 10x
+  if (controles) {
+    const { gx, gz } = mundoParaGrade(controles.target.x, controles.target.z);
+    ctx.strokeStyle = '#ffd54f';
+    ctx.lineWidth = 1.5;
+    const viewSize = Math.max(8, Math.floor((CHUNK_SIZE * RAIO_CHUNKS * 2) * px));
+    ctx.strokeRect(
+      Math.floor(gx * px - viewSize / 2),
+      Math.floor(gz * px - viewSize / 2),
+      viewSize,
+      viewSize
+    );
+  }
+}
+
+// Navegación rápida tocando en el minimapa
+const miniMapaCanvas = document.getElementById('mini-mapa');
+if (miniMapaCanvas) {
+  const navegarMinimapa = (e) => {
+    const rect = miniMapaCanvas.getBoundingClientRect();
+    const clickX = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+    const clickY = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    const gx = Math.floor((clickX / miniMapaCanvas.width) * TAMANHO_GRADE);
+    const gz = Math.floor((clickY / miniMapaCanvas.height) * TAMANHO_GRADE);
+    if (celulaValida(gx, gz) && controles) {
+      const { x, z } = gradeParaMundo(gx, gz);
+      controles.target.set(x, 0, z);
+      camera.position.set(x + 65, 80, z + 85);
+      controles.update();
+      desenharMiniMapa();
+      tocarSonido('monedas');
+    }
+  };
+  miniMapaCanvas.addEventListener('click', navegarMinimapa);
 }
 
 function animar() {
   requestAnimationFrame(animar);
   if (controles) controles.update();
+
+  if (controles && gridHelper) {
+    gridHelper.position.x = Math.floor(controles.target.x / TAMANHO_CELULA) * TAMANHO_CELULA;
+    gridHelper.position.z = Math.floor(controles.target.z / TAMANHO_CELULA) * TAMANHO_CELULA;
+  }
+
+  if (controles && luzSol) {
+    luzSol.position.set(controles.target.x + 80, 130, controles.target.z + 70);
+    luzSol.target.position.set(controles.target.x, 0, controles.target.z);
+    luzSol.target.updateMatrixWorld();
+  }
+
+  actualizarChunksCamara();
+  procesarFilaChunks();
+
   if (renderizador && cena && camera) {
     renderizador.render(cena, camera);
   }

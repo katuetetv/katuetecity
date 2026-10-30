@@ -29,7 +29,7 @@ app.use(express.static(path.join(__dirname)));
    CONFIGURACIÓN Y ESTADO GLOBAL DEL SERVIDOR
    ============================================================ */
 
-const TAMANHO_GRADE = 40;
+const TAMANHO_GRADE = 400; // Mapa 10x más grande
 const CAPITAL_INICIAL_OIKOS = 1000;
 const DURACION_TURNO_SEGUNDOS = 10;
 const SALARIO_TURNO_OIKOS = 350;
@@ -59,10 +59,7 @@ const jugadores = new Map();
 // mapa[z][x] = { tipo, rot, inquilino: null | nombre, fechaConstruccion, autor }
 const mapa = [];
 for (let z = 0; z < TAMANHO_GRADE; z++) {
-  mapa[z] = [];
-  for (let x = 0; x < TAMANHO_GRADE; x++) {
-    mapa[z][x] = null;
-  }
+  mapa[z] = new Array(TAMANHO_GRADE).fill(null);
 }
 
 // Lista de vehículos compartidos
@@ -76,27 +73,43 @@ function inicializarCiudadBase() {
   const c = Math.floor(TAMANHO_GRADE / 2);
 
   // Avenidas centrales cruzadas
-  for (let x = c - 7; x <= c + 7; x++) {
+  for (let x = c - 16; x <= c + 16; x++) {
     mapa[c][x] = { tipo: 'estrada', rot: 0, autor: 'Municipio' };
   }
-  for (let z = c - 7; z <= c + 7; z++) {
+  for (let z = c - 16; z <= c + 16; z++) {
     mapa[z][c] = { tipo: 'estrada', rot: 0, autor: 'Municipio' };
   }
 
+  // Calles conectoras
+  for (let x = c - 16; x <= c + 16; x++) {
+    mapa[c - 8][x] = { tipo: 'estrada', rot: 0, autor: 'Municipio' };
+    mapa[c + 8][x] = { tipo: 'estrada', rot: 0, autor: 'Municipio' };
+  }
+  for (let z = c - 16; z <= c + 16; z++) {
+    mapa[z][c - 8] = { tipo: 'estrada', rot: 0, autor: 'Municipio' };
+    mapa[z][c + 8] = { tipo: 'estrada', rot: 0, autor: 'Municipio' };
+  }
+
   // Viviendas iniciales disponibles para alquilar
-  mapa[c - 2][c - 2] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c - 2][c + 2] = { tipo: 'sobrado', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c + 2][c - 2] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c + 2][c + 2] = { tipo: 'predio', rot: 0, inquilino: null, autor: 'Municipio' };
+  mapa[c - 3][c - 3] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
+  mapa[c - 5][c - 3] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
+  mapa[c - 3][c + 3] = { tipo: 'sobrado', rot: 0, inquilino: null, autor: 'Municipio' };
+  mapa[c - 5][c + 3] = { tipo: 'sobrado', rot: 0, inquilino: null, autor: 'Municipio' };
+  mapa[c + 3][c - 3] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
+  mapa[c + 5][c - 3] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
+  mapa[c + 3][c + 3] = { tipo: 'predio', rot: 0, inquilino: null, autor: 'Municipio' };
+  mapa[c + 5][c + 3] = { tipo: 'predio', rot: 0, inquilino: null, autor: 'Municipio' };
 
   // Servicios y comercios de la ciudad
-  mapa[c - 4][c - 3] = { tipo: 'loja', rot: 0, autor: 'Municipio' };
-  mapa[c + 4][c + 3] = { tipo: 'posto', rot: 0, autor: 'Municipio' };
-  mapa[c + 3][c - 4] = { tipo: 'parque', rot: 0, autor: 'Municipio' };
-  mapa[c - 5][c + 4] = { tipo: 'usina', rot: 0, autor: 'Municipio' };
-  mapa[c + 5][c + 4] = { tipo: 'caixaDAgua', rot: 0, autor: 'Municipio' };
+  mapa[c - 4][c - 5] = { tipo: 'loja', rot: 0, autor: 'Municipio' };
+  mapa[c + 4][c - 5] = { tipo: 'loja', rot: 0, autor: 'Municipio' };
+  mapa[c + 4][c + 5] = { tipo: 'posto', rot: 0, autor: 'Municipio' };
+  mapa[c + 3][c - 11] = { tipo: 'parque', rot: 0, autor: 'Municipio' };
+  mapa[c - 3][c - 11] = { tipo: 'parque', rot: 0, autor: 'Municipio' };
+  mapa[c - 11][c + 11] = { tipo: 'usina', rot: 0, autor: 'Municipio' };
+  mapa[c + 11][c + 11] = { tipo: 'caixaDAgua', rot: 0, autor: 'Municipio' };
 
-  console.log('✅ Ciudad inicial de KatueteCity creada en el servidor.');
+  console.log('✅ Ciudad inicial de KatueteCity creada en el servidor (Mapa 400x400).');
 }
 inicializarCiudadBase();
 

@@ -4,6 +4,23 @@ Juego 3D en el navegador de construcción de ciudades y simulación económica c
 
 ---
 
+## 📱 Novedades: Soporte Touch Mobile y Mapa 10x con Chunks
+
+1. **📱 Experiencia Mobile Nativa y Touch:**
+   - **Gestos Táctiles Intuitivos:** 1 dedo para orbitar/girar la cámara, 2 dedos para pellizcar (zoom) y arrastrar (paneo).
+   - **Construcción e Inspección al Toque:** Toque limpio con el dedo para colocar edificios o inspeccionar solares sin falsos clics al mover la vista.
+   - **Botón Flotante de Rotación:** Botón `🔄 Girar 90°` en pantalla para rotar edificios en el celular sin necesidad de teclado.
+   - **Controles de Cámara en Pantalla:** Botón para recentrar la vista en el núcleo urbano (`🎯`), alejar (`➖`) y acercar (`➕`).
+   - **Diseño Adaptativo Responsive:** Dock inferior compacto adaptado a pantallas táctiles, barra superior con scroll horizontal suave y ventanas flotantes optimizadas para móviles.
+
+2. **🗺️ Mapa 10x Más Grande (1.6 km x 1.6 km):**
+   - **Escala Urbana Ampliada:** La cuadrícula creció de 40x40 a **400x400 celdas** (160.000 parcelas habitables).
+   - **Carga Gradual por Chunks (Chunk Streaming):** El mundo está dividido en cuadrantes de 20x20 celdas. Solo los chunks visibles dentro del radio de la cámara se cargan en la escena de Three.js.
+   - **Rendimiento Fluido a 60 FPS:** La cola de carga procesa hasta 2 chunks por fotograma, eliminando cualquier congelamiento o caída de frames.
+   - **Minimapa en Tiempo Real:** Muestra la posición del jugador mediante un recuadro de visión y permite teletransportar la cámara tocando cualquier punto del mapa.
+
+---
+
 ## 🔐 Autenticación con Google Firebase
 
 El juego cuenta con un sistema de cuentas seguro y persistente gracias a **Firebase Authentication**:

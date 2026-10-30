@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a180f" />
   <title>KatueteCity — La Ciudad de la Integración</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -36,15 +37,22 @@
 
       <div class="separador-topo"></div>
 
-      <!-- Indicador de Rotación (solo visible al construir) -->
-      <div id="indicador-rotacao">
-        🔄 Rotación: <strong id="valor-rotacao">0°</strong> &nbsp;<kbd>R</kbd>
-      </div>
+      <!-- Indicador de Rotación (clicable en táctil / atajo 'R') -->
+      <button id="indicador-rotacao" class="btn-topo-rotacion" title="Toca o presiona 'R' para girar 90°">
+        🔄 <span class="rot-txt">Rotación:</span> <strong id="valor-rotacao">0°</strong> &nbsp;<kbd>R</kbd>
+      </button>
 
       <!-- Botón para abrir el Login Minimalista -->
-      <button id="btn-abrir-login" class="btn-topo login-destaque">🔑 Cuenta / Ingresar</button>
+      <button id="btn-abrir-login" class="btn-topo login-destaque">🔑 Cuenta</button>
       <button id="btn-guardar-local" class="btn-topo" title="Guarda la ciudad en tu cuenta">💾 Guardar</button>
       <button id="btn-desconectar" class="btn-topo salir" style="display: none;">⬅ Salir</button>
+    </div>
+
+    <!-- Controles Rápidos de Cámara en Pantalla (Mobile / Desktop) -->
+    <div id="controles-camara-flotantes">
+      <button id="btn-cam-recentrar" class="btn-ctrl-cam" title="Recentrar vista en el centro de la ciudad">🎯</button>
+      <button id="btn-cam-zoom-in" class="btn-ctrl-cam" title="Acercar cámara">➕</button>
+      <button id="btn-cam-zoom-out" class="btn-ctrl-cam" title="Alejar cámara">➖</button>
     </div>
 
     <!-- ============================================================
@@ -276,6 +284,11 @@
       </div>
     </div>
 
+    <!-- Botón Flotante para Girar en Móvil (Aparece al seleccionar un edificio) -->
+    <button id="btn-rotar-touch" class="btn-flotante-rotar" style="display: none;" title="Girar orientación (90°)">
+      🔄 Girar <strong id="valor-rotacao-touch">0°</strong>
+    </button>
+
     <!-- ============================================================
          BARRA INFERIOR DE MENÚ (DOCK PRINCIPAL ESTILO SIMCITY)
          ============================================================ -->
@@ -330,8 +343,6 @@
         <button id="admin-cerrar-modal" class="btn-secundario" style="width: 100%; margin-top: 14px;">Cerrar Panel</button>
       </div>
     </div>
-
-  </div><!-- fin #hud -->
 
   </div><!-- fin #hud -->
 
