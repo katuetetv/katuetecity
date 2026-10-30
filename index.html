@@ -360,6 +360,16 @@
           <h5>Ciudadanos en Línea</h5>
           <div id="lista-usuarios-conectados"></div>
         </div>
+        <div class="servidor-box" style="margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 11px; font-weight: bold; color: #a5d6a7;">🌐 Servidor Multijugador (Render)</span>
+            <span id="estado-conexion-texto" style="font-size: 10px; color: #aaa;">Local / Desconectado</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="input-url-servidor" placeholder="https://tu-app.onrender.com" style="flex: 1; padding: 6px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #444; background: #1a1a24; color: #fff;">
+            <button id="btn-conectar-servidor" style="padding: 6px 12px; font-size: 11px; background: #2e7d32; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Conectar</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -376,6 +386,7 @@
         <button id="btn-entrar-comercio" class="btn-comercio-accion" style="display: none;">🛒 Entrar al Comercio</button>
         <button id="btn-entrar-banco" class="btn-banco-accion" style="display: none;">🏦 Operaciones Bancarias</button>
         <button id="btn-upgrade-calle" class="btn-upgrade-vial" style="display: none;">⬆️ Mejorar Calle</button>
+        <button id="btn-girar-edificio" class="btn-girar-inmueble" style="display: none;">🔄 Girar Construcción (90°)</button>
         <button id="btn-mover-edificio" class="btn-mover-inmueble" style="display: none;">🔄 Mover de Lugar</button>
       </div>
     </div>
@@ -658,10 +669,11 @@
   </div><!-- fin #hud -->
 
   <!-- ============================================================
-       BIBLIOTECAS (Three.js & OrbitControls)
+       BIBLIOTECAS (Three.js, OrbitControls & Socket.IO Multijugador)
        ============================================================ -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
   <!-- Script Principal con Firebase Modular (ES Module) -->
   <script type="module" src="main.js"></script>

@@ -205,6 +205,8 @@ io.on('connection', (socket) => {
       nombreUsuario = `Ciudadano_${socket.id.substring(0, 4)}`;
     }
 
+    const esAdmin = Boolean(datos?.esAdmin) || nombreUsuario.toUpperCase() === 'ALCALDE';
+
     // Verificar si el nombre ya está en uso por otro jugador activo
     let nombreFinal = nombreUsuario;
     let contador = 1;
@@ -217,7 +219,8 @@ io.on('connection', (socket) => {
     const nuevoJugador = {
       id: socket.id,
       nombre: nombreFinal,
-      oikos: CAPITAL_INICIAL_OIKOS,
+      esAdmin,
+      oikos: esAdmin ? 9999999 : (datos?.oikos ? Math.max(1000, Number(datos.oikos)) : CAPITAL_INICIAL_OIKOS),
       empleo: {
         estado: 'desocupado', // 'desocupado' | 'trabajando'
         segundosRestantes: 0
@@ -439,7 +442,7 @@ io.on('connection', (socket) => {
   /**
    * 4. CONSTRUCCIÓN SINCRONIZADA EN EL MAPA MULTIJUGADOR
    */
-  socket.on('solicitar_construccion', ({ tipo, gx, gz, rot }) => {
+  const procesarConstruccion = ({ tipo, gx, gz, rot }) => {
     const jugador = jugadores.get(socket.id);
     if (!jugador) return;
 
@@ -461,14 +464,16 @@ io.on('connection', (socket) => {
       }
     }
 
-    const costo = COSTOS_CONSTRUCCION[tipo] || 0;
-    if (jugador.oikos < costo) {
+    const costo = jugador.esAdmin ? 0 : (COSTOS_CONSTRUCCION[tipo] || 0);
+    if (!jugador.esAdmin && jugador.oikos < costo) {
       socket.emit('notificacion', { tipo: 'error', mensaje: `No tienes suficientes Oikos. Costo: ${costo} Oikos.` });
       return;
     }
 
-    // Descontar Oikos
-    jugador.oikos -= costo;
+    // Descontar Oikos si no es Alcalde/Admin
+    if (!jugador.esAdmin) {
+      jugador.oikos -= costo;
+    }
 
     // Registrar en el mapa compartido
     mapa[gz][gx] = {
@@ -499,7 +504,7 @@ io.on('connection', (socket) => {
       nuevoSaldoOikos: jugador.oikos
     });
 
-    // Replicar a todos los jugadores en la ciudad
+    // Replicar a todos los jugadores en la ciudad en tiempo real
     io.emit('objeto_construido', {
       tipo, gx, gz, rot,
       autor: jugador.nombre,
@@ -509,12 +514,15 @@ io.on('connection', (socket) => {
     });
 
     console.log(`🔨 [${jugador.nombre}] construyó ${tipo} en (${gx}, ${gz}) [${w}x${h}]`);
-  });
+  };
+
+  socket.on('solicitar_construccion', procesarConstruccion);
+  socket.on('construir_objeto', procesarConstruccion);
 
   /**
    * 5. DEMOLICIÓN SINCRONIZADA
    */
-  socket.on('solicitar_demolicion', ({ gx, gz }) => {
+  const procesarDemolicion = ({ gx, gz }) => {
     const jugador = jugadores.get(socket.id);
     if (!jugador) return;
 
@@ -532,8 +540,8 @@ io.on('connection', (socket) => {
     const w = celda.w || 1;
     const h = celda.h || 1;
 
-    // Si tiene un inquilino ajeno, avisar
-    if (celda.inquilino && celda.inquilino !== jugador.nombre) {
+    // Si tiene un inquilino ajeno, avisar (a menos que sea el Alcalde)
+    if (celda.inquilino && celda.inquilino !== jugador.nombre && !jugador.esAdmin) {
       socket.emit('notificacion', { tipo: 'error', mensaje: `No puedes demoler una casa alquilada por ${celda.inquilino}.` });
       return;
     }
@@ -557,32 +565,41 @@ io.on('connection', (socket) => {
     });
 
     console.log(`💥 [${jugador.nombre}] demolió edificio en (${gx}, ${gz})`);
-  });
+  };
+
+  socket.on('solicitar_demolicion', procesarDemolicion);
+  socket.on('demoler_objeto', procesarDemolicion);
 
   /**
    * 5.1 MEJORA DE CALLE SINCRONIZADA
    */
-  socket.on('solicitar_mejora_calle', ({ gx, gz, nuevoTipo, costo }) => {
+  const procesarMejoraCalle = ({ gx, gz, nuevoTipo, costo }) => {
     const jugador = jugadores.get(socket.id);
     if (!jugador) return;
-    if (gx < 0 || gz < 0 || gx >= TAMANHO_GRADE || gz >= TAMANHO_GRADE) return;
+    if (gx < 0 || gz < 0 || gx >= TAMANHO_GRADE || gx < 0 || gz < 0 || gx >= TAMANHO_GRADE || gz >= TAMANHO_GRADE) return;
     const celda = mapa[gz]?.[gx];
     if (!celda) return;
 
-    if (jugador.oikos < (costo || 0)) {
+    const costoReal = jugador.esAdmin ? 0 : (costo || 0);
+    if (!jugador.esAdmin && jugador.oikos < costoReal) {
       socket.emit('notificacion', { tipo: 'error', mensaje: 'Saldo insuficiente.' });
       return;
     }
-    jugador.oikos -= (costo || 0);
+    if (!jugador.esAdmin) {
+      jugador.oikos -= costoReal;
+    }
     celda.tipo = nuevoTipo;
     io.emit('calle_mejorada', { gx, gz, nuevoTipo, mejoradoPor: jugador.nombre });
     socket.emit('actualizar_saldo_jugador', { nombre: jugador.nombre, oikos: jugador.oikos });
-  });
+  };
+
+  socket.on('solicitar_mejora_calle', procesarMejoraCalle);
+  socket.on('mejorar_calle', procesarMejoraCalle);
 
   /**
    * 5.2 MOVER CONSTRUCCIÓN SINCRONIZADO
    */
-  socket.on('solicitar_mover', ({ origenGx, origenGz, destinoGx, destinoGz }) => {
+  const procesarMover = ({ origenGx, origenGz, destinoGx, destinoGz }) => {
     const jugador = jugadores.get(socket.id);
     if (!jugador) return;
     let celda = mapa[origenGz]?.[origenGx];
@@ -600,7 +617,9 @@ io.on('connection', (socket) => {
       for (let dx = 0; dx < w; dx++) {
         const cx = destinoGx + dx;
         const cz = destinoGz + dz;
-        if (cx >= TAMANHO_GRADE || cz >= TAMANHO_GRADE || mapa[cz]?.[cx] !== null) {
+        // Permitir ocupar las celdas que deja libres en el origen
+        const eraOrigen = cx >= origenGx && cx < origenGx + w && cz >= origenGz && cz < origenGz + h;
+        if (cx >= TAMANHO_GRADE || cz >= TAMANHO_GRADE || (mapa[cz]?.[cx] !== null && !eraOrigen)) {
           socket.emit('notificacion', { tipo: 'error', mensaje: 'Terreno de destino no disponible.' });
           return;
         }
@@ -643,7 +662,10 @@ io.on('connection', (socket) => {
       rot: celda.rot,
       w, h
     });
-  });
+  };
+
+  socket.on('solicitar_mover', procesarMover);
+  socket.on('mover_objeto', procesarMover);
 
   /**
    * 6. DESCONEXIÓN

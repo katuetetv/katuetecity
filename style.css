@@ -1399,6 +1399,30 @@ kbd {
   box-shadow: 0 6px 16px rgba(2, 136, 209, 0.5);
 }
 
+.btn-girar-inmueble {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #00897b, #004d40);
+  border: 1px solid rgba(128, 203, 196, 0.5);
+  color: #ffffff;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-girar-inmueble:hover {
+  background: linear-gradient(135deg, #00bfa5, #00796b);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 191, 165, 0.4);
+}
+
 .btn-mover-inmueble {
   width: 100%;
   margin-top: 8px;
@@ -1907,6 +1931,30 @@ kbd {
   background: linear-gradient(135deg, #039be5, #0288d1);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(2, 136, 209, 0.5);
+}
+
+.btn-girar-inmueble {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #00897b, #004d40);
+  border: 1px solid rgba(128, 203, 196, 0.5);
+  color: #ffffff;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-girar-inmueble:hover {
+  background: linear-gradient(135deg, #00bfa5, #00796b);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 191, 165, 0.4);
 }
 
 .btn-mover-inmueble {

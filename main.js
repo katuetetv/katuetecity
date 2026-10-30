@@ -37,6 +37,200 @@ const googleProvider = new GoogleAuthProvider();
    2. ESTADO DEL JUGADOR Y DE LA CIUDAD
    ============================================================ */
 let usuarioFirebase = null;
+let socket = null;
+
+function inicializarConexionSocket() {
+  if (typeof io === 'undefined') return;
+
+  let urlServidor = window.KATUETE_SERVER_URL || localStorage.getItem('katuete_server_url');
+  const esServidorPropio = window.location.hostname.includes('onrender.com') ||
+                           window.location.hostname.includes('railway.app') ||
+                           window.location.hostname === 'localhost' ||
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.port === '3000';
+
+  if (!urlServidor && esServidorPropio) {
+    urlServidor = window.location.origin;
+  }
+
+  const inpUrl = document.getElementById('input-url-servidor');
+  const txtEstado = document.getElementById('estado-conexion-texto');
+  if (inpUrl && urlServidor) inpUrl.value = urlServidor;
+
+  if (!urlServidor && !esServidorPropio) {
+    console.log('ℹ️ KatueteCity en modo local (GitHub Pages). Para multijugador en vivo, conecta tu URL de Render.');
+    if (txtEstado) {
+      txtEstado.textContent = '⚠️ Sin conexión (Render)';
+      txtEstado.style.color = '#ffb74d';
+    }
+    const badgeOnline = document.getElementById('badge-online');
+    if (badgeOnline) {
+      badgeOnline.style.cursor = 'pointer';
+      badgeOnline.title = 'Haz clic para conectar a tu servidor multijugador Render';
+    }
+    return;
+  }
+
+  try {
+    if (socket) {
+      try { socket.disconnect(); } catch (e) {}
+    }
+
+    if (txtEstado) {
+      txtEstado.textContent = '🟡 Conectando...';
+      txtEstado.style.color = '#fff176';
+    }
+
+    socket = io(urlServidor, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 25,
+      reconnectionDelay: 2000
+    });
+
+    socket.on('connect', () => {
+      console.log('🔌 Conectado exitosamente al servidor multijugador KatueteCity. ID:', socket.id);
+      socket.emit('iniciar_sesion', {
+        nombre: jugadorLocal.nombre,
+        uid: jugadorLocal.uid,
+        esAdmin: jugadorLocal.esAdmin,
+        oikos: jugadorLocal.oikos
+      });
+      mostrarNotificacion('🌐 ¡Conectado al servidor multijugador en vivo!');
+      const badgeOnline = document.getElementById('badge-online');
+      if (badgeOnline) {
+        badgeOnline.style.borderColor = '#81c784';
+        badgeOnline.style.boxShadow = '0 0 10px rgba(129, 199, 132, 0.5)';
+      }
+      if (txtEstado) {
+        txtEstado.textContent = '🟢 En línea (' + (socket.id ? socket.id.substring(0, 4) : 'OK') + ')';
+        txtEstado.style.color = '#81c784';
+      }
+    });
+
+    // 1. Carga inicial del mapa sincronizado desde el servidor
+    socket.on('bienvenida', (datos) => {
+      console.log('📦 Mapa compartido recibido del servidor:', datos?.mapa?.length || 0, 'edificios');
+      if (datos?.mapa && Array.isArray(datos.mapa) && datos.mapa.length > 0) {
+        datos.mapa.forEach(item => {
+          instanciarObjetoLocal(item.tipo, item.x, item.z, item.rot || 0, item.inquilino, item.autor);
+        });
+        desenharMiniMapa();
+      }
+      if (datos?.jugadoresOnline) {
+        actualizarListaCiudadanos(datos.jugadoresOnline);
+        const elOnline = document.getElementById('stat-jugadores-online');
+        if (elOnline) elOnline.textContent = datos.jugadoresOnline.length;
+      }
+    });
+
+    // 2. Construcción replicada en tiempo real de otro jugador
+    socket.on('objeto_construido', (datos) => {
+      const celdaExistente = estado.grade[datos.gz]?.[datos.gx];
+      // Si el autor es el jugador local y la celda ya tiene el tipo correcto, omitir re-creación para evitar parpadeos
+      if (celdaExistente && celdaExistente.tipo === datos.tipo && datos.autor === jugadorLocal.nombre) {
+        return;
+      }
+      instanciarObjetoLocal(datos.tipo, datos.gx, datos.gz, datos.rot || 0, datos.inquilino, datos.autor);
+      desenharMiniMapa();
+      if (datos.autor && datos.autor !== jugadorLocal.nombre) {
+        mostrarNotificacion(`🔨 ${datos.autor} construyó ${datos.tipo.toUpperCase()} en (${datos.gx}, ${datos.gz}).`);
+        tocarSonido('construir');
+      }
+    });
+
+    // 3. Demolición replicada en tiempo real
+    socket.on('objeto_demolido', (datos) => {
+      eliminarObjetoLocal(datos.gx, datos.gz);
+      desenharMiniMapa();
+      if (datos.demolidoPor && datos.demolidoPor !== jugadorLocal.nombre) {
+        mostrarNotificacion(`💥 ${datos.demolidoPor} demolió un edificio en (${datos.gx}, ${datos.gz}).`);
+        tocarSonido('demolir');
+      }
+    });
+
+    // 4. Mejora vial replicada
+    socket.on('calle_mejorada', (datos) => {
+      const celda = estado.grade[datos.gz]?.[datos.gx];
+      if (celda) {
+        celda.tipo = datos.nuevoTipo;
+        actualizarMeshCelda(datos.gx, datos.gz);
+        actualizarVecinosEstrada(datos.gx, datos.gz);
+        desenharMiniMapa();
+      }
+    });
+
+    // 5. Movimiento de construcción replicado
+    socket.on('objeto_movido', (datos) => {
+      eliminarObjetoLocal(datos.origenGx, datos.origenGz);
+      instanciarObjetoLocal(datos.tipo, datos.destinoGx, datos.destinoGz, datos.rot || 0, null, 'Municipio');
+      desenharMiniMapa();
+    });
+
+    // 6. Alquileres replicados
+    socket.on('casa_actualizada', (datos) => {
+      const celda = estado.grade[datos.gz]?.[datos.gx];
+      if (celda) {
+        celda.inquilino = datos.inquilino;
+        actualizarMeshCelda(datos.gx, datos.gz);
+      }
+    });
+
+    // 7. Lista de jugadores
+    socket.on('actualizar_lista_jugadores', (lista) => {
+      actualizarListaCiudadanos(lista);
+      const elOnline = document.getElementById('stat-jugadores-online');
+      if (elOnline) elOnline.textContent = lista.length;
+    });
+
+    socket.on('jugador_conectado', (datos) => {
+      mostrarNotificacion(`👤 ${datos.nombre} ingresó a la ciudad.`);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('⚠️ Desconectado del servidor multijugador.');
+      const badgeOnline = document.getElementById('badge-online');
+      if (badgeOnline) {
+        badgeOnline.style.borderColor = '#ef5350';
+        badgeOnline.style.boxShadow = 'none';
+      }
+      if (txtEstado) {
+        txtEstado.textContent = '🔴 Desconectado';
+        txtEstado.style.color = '#ef5350';
+      }
+    });
+  } catch (err) {
+    console.error('Error al iniciar socket multijugador:', err);
+    if (txtEstado) {
+      txtEstado.textContent = '❌ Error de conexión';
+      txtEstado.style.color = '#ef5350';
+    }
+  }
+}
+
+window.conectarAServidorMultijugador = function(url) {
+  if (url) {
+    url = url.trim().replace(/\/$/, '');
+    localStorage.setItem('katuete_server_url', url);
+  }
+  inicializarConexionSocket();
+};
+
+// Listeners de interfaz para conexión multijugador
+document.getElementById('btn-conectar-servidor')?.addEventListener('click', () => {
+  const inp = document.getElementById('input-url-servidor');
+  if (inp && inp.value) {
+    window.conectarAServidorMultijugador(inp.value);
+    mostrarNotificacion('🔄 Intentando conectar a: ' + inp.value);
+  }
+});
+
+document.getElementById('badge-online')?.addEventListener('click', () => {
+  const menu = document.getElementById('menu-ciudad');
+  if (menu) {
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  }
+});
 
 const jugadorLocal = {
   uid: null,
@@ -2519,6 +2713,15 @@ function rotarHerramienta() {
   if (elRot) elRot.textContent = texto;
   const elRotTouch = document.getElementById('valor-rotacao-touch');
   if (elRotTouch) elRotTouch.textContent = texto;
+
+  if (estado.objetoMoviendo) {
+    estado.objetoMoviendo.rot = ((estado.objetoMoviendo.rot || 0) + 90) % 360;
+  }
+
+  if (fantasmaObjeto) {
+    const rotFinal = estado.objetoMoviendo ? estado.objetoMoviendo.rot : estado.rotacaoAtual;
+    fantasmaObjeto.rotation.y = (rotFinal * Math.PI) / 180;
+  }
   tocarSonido('construir');
 }
 
@@ -2683,6 +2886,9 @@ function configurarEventosInteraccion() {
           if (jugadorLocal.esAdmin || jugadorLocal.oikos >= costoUnidad) {
             if (!jugadorLocal.esAdmin) jugadorLocal.oikos -= costoUnidad;
             instanciarObjetoLocal(tipoCalle, c.gx, c.gz, 0, null, jugadorLocal.esAdmin ? 'Municipio (Alcalde)' : jugadorLocal.nombre);
+            if (socket && socket.connected) {
+              socket.emit('solicitar_construccion', { tipo: tipoCalle, gx: c.gx, gz: c.gz, rot: 0 });
+            }
           }
         }
       });
@@ -2692,6 +2898,7 @@ function configurarEventosInteraccion() {
       estado.arrastandoEstrada = false;
       estado.inicioArrasto = null;
       desenharMiniMapa();
+      guardarCiudadEnStorage(false);
       return;
     }
 
@@ -3003,7 +3210,7 @@ function configurarEventosInteraccion() {
   });
 
   // Guardar Local
-  document.getElementById('btn-guardar-local')?.addEventListener('click', guardarCiudadEnStorage);
+  document.getElementById('btn-guardar-local')?.addEventListener('click', () => guardarCiudadEnStorage(true));
 
   window.addEventListener('resize', () => {
     if (camera && renderizador) {
@@ -3043,6 +3250,9 @@ function procesarClicEnGrilla(gx, gz) {
       return;
     }
     instanciarObjetoLocal(o.tipo, gx, gz, o.rot, o.inquilino, o.autor);
+    if (socket && socket.connected) {
+      socket.emit('solicitar_mover', { origenGx: o.origenGx, origenGz: o.origenGz, destinoGx: gx, destinoGz: gz });
+    }
     estado.objetoMoviendo = null;
     estado.ferramentaAtiva = 'ponteiro';
     limparFantasma();
@@ -3060,6 +3270,10 @@ function procesarClicEnGrilla(gx, gz) {
       return;
     }
     eliminarObjetoLocal(gx, gz);
+    if (socket && socket.connected) {
+      socket.emit('solicitar_demolicion', { gx, gz });
+      socket.emit('demoler_objeto', { gx, gz });
+    }
     tocarSonido('demolir');
     desenharMiniMapa();
     mostrarNotificacion('💥 Edificio demolido.');
@@ -3113,9 +3327,14 @@ function procesarClicEnGrilla(gx, gz) {
       jugadorLocal.oikos -= costo;
     }
     instanciarObjetoLocal(ferr, gx, gz, estado.rotacaoAtual, null, jugadorLocal.esAdmin ? 'Municipio (Alcalde)' : jugadorLocal.nombre);
+    if (socket && socket.connected) {
+      socket.emit('solicitar_construccion', { tipo: ferr, gx, gz, rot: estado.rotacaoAtual });
+      socket.emit('construir_objeto', { tipo: ferr, gx, gz, rot: estado.rotacaoAtual });
+    }
     actualizarHUD();
     tocarSonido('construir');
     desenharMiniMapa();
+    guardarCiudadEnStorage(false);
     mostrarNotificacion(`🔨 ${ferr.toUpperCase()} construido con éxito.`);
   }
 }
@@ -3178,6 +3397,10 @@ function alquilarCasaLocal(gx, gz) {
   celda.inquilino = jugadorLocal.nombre;
   jugadorLocal.casasAlquiladas.push({ gx, gz });
 
+  if (socket && socket.connected) {
+    socket.emit('alquilar_vivienda', { gx, gz });
+  }
+
   actualizarMeshCelda(gx, gz);
   actualizarHUD();
   mostrarDetallesCelula(gx, gz);
@@ -3192,6 +3415,10 @@ function desalojarCasaLocal(gx, gz) {
 
   celda.inquilino = null;
   jugadorLocal.casasAlquiladas = jugadorLocal.casasAlquiladas.filter(c => !(c.gx === gx && c.gz === gz));
+
+  if (socket && socket.connected) {
+    socket.emit('desalojar_vivienda', { gx, gz });
+  }
 
   actualizarMeshCelda(gx, gz);
   mostrarDetallesCelula(gx, gz);
@@ -3225,13 +3452,21 @@ function iniciarCicloAlquilerLocal() {
 }
 
 /* ============================================================
-   11. PERSISTENCIA VINCULADA AL USUARIO DE FIREBASE
+   11. PERSISTENCIA VINCULADA AL USUARIO Y AL DISPOSITIVO LOCAL
    ============================================================ */
 function guardarCiudadEnStorage(notificar = true) {
-  if (!jugadorLocal.uid) return;
-  const clave = `katuete_save_${jugadorLocal.uid}`;
+  // Asegurar que exista un identificador local si el usuario no ha iniciado sesión con Firebase
+  if (!jugadorLocal.uid) {
+    let localUid = localStorage.getItem('katuete_local_id');
+    if (!localUid) {
+      localUid = 'local_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('katuete_local_id', localUid);
+    }
+    jugadorLocal.uid = localUid;
+  }
 
   const guardado = {
+    uid: jugadorLocal.uid,
     nombre: jugadorLocal.nombre,
     oikos: jugadorLocal.oikos,
     saldoBanco: jugadorLocal.saldoBanco || 0,
@@ -3239,38 +3474,74 @@ function guardarCiudadEnStorage(notificar = true) {
     inventario: jugadorLocal.inventario || [],
     garagem: jugadorLocal.garagem || [],
     empleoEspecializado: jugadorLocal.empleoEspecializado || null,
-    casasAlquiladas: jugadorLocal.casasAlquiladas,
+    casasAlquiladas: jugadorLocal.casasAlquiladas || [],
     bairros: estado.bairros || [],
     mapa: []
   };
 
   for (let z = 0; z < TAMANHO_GRADE; z++) {
     for (let x = 0; x < TAMANHO_GRADE; x++) {
-      const c = estado.grade[z][x];
+      const c = estado.grade[z]?.[x];
       if (c && !c.esHijo) {
-        guardado.mapa.push({ x, z, tipo: c.tipo, rot: c.rot, inquilino: c.inquilino, autor: c.autor });
+        guardado.mapa.push({ x, z, tipo: c.tipo, rot: c.rot || 0, inquilino: c.inquilino, autor: c.autor });
       }
     }
   }
 
-  localStorage.setItem(clave, JSON.stringify(guardado));
-  if (estado.bairros && estado.bairros.length > 0) {
-    localStorage.setItem('katuete_global_bairros', JSON.stringify(estado.bairros));
+  const serializado = JSON.stringify(guardado);
+
+  try {
+    // 1. Clave de usuario específica
+    localStorage.setItem(`katuete_save_${jugadorLocal.uid}`, serializado);
+    // 2. Clave maestra global (garantiza que al recargar en GitHub Pages la ciudad persista siempre)
+    localStorage.setItem('katuete_ciudad_guardada_master', serializado);
+    // 3. Persistir sesión actual
+    localStorage.setItem('katuete_session', JSON.stringify({
+      uid: jugadorLocal.uid,
+      nombre: jugadorLocal.nombre,
+      email: jugadorLocal.email,
+      esAdmin: jugadorLocal.esAdmin,
+      oikos: jugadorLocal.oikos
+    }));
+    // 4. Persistir barrios
+    if (estado.bairros && estado.bairros.length > 0) {
+      localStorage.setItem('katuete_global_bairros', JSON.stringify(estado.bairros));
+    }
+  } catch (err) {
+    console.error('Error al guardar en localStorage:', err);
   }
+
   if (notificar) {
     tocarSonido('monedas');
-    mostrarNotificacion('💾 ¡Progreso guardado con éxito en tu cuenta!');
+    mostrarNotificacion('💾 ¡Progreso de la ciudad guardado con éxito!');
   }
 }
 
 function recuperarCiudadGuardada() {
-  if (!jugadorLocal.uid) return false;
-  const clave = `katuete_save_${jugadorLocal.uid}`;
-  const data = localStorage.getItem(clave);
+  let data = null;
+  // Intentar cargar por clave de usuario
+  if (jugadorLocal.uid) {
+    data = localStorage.getItem(`katuete_save_${jugadorLocal.uid}`);
+  }
+  // Si no está o no hay sesión de usuario, usar la clave maestra persistente
+  if (!data) {
+    data = localStorage.getItem('katuete_ciudad_guardada_master');
+  }
   if (!data) return false;
 
   try {
     const parse = JSON.parse(data);
+    if (!parse || !parse.mapa || !Array.isArray(parse.mapa) || parse.mapa.length === 0) {
+      return false;
+    }
+
+    if (parse.uid && !jugadorLocal.uid) {
+      jugadorLocal.uid = parse.uid;
+    }
+    if (parse.nombre && (!jugadorLocal.nombre || jugadorLocal.nombre === 'Visitante')) {
+      jugadorLocal.nombre = parse.nombre;
+    }
+
     jugadorLocal.oikos = parse.oikos ?? 1000;
     jugadorLocal.saldoBanco = parse.saldoBanco || 0;
     jugadorLocal.deudaPrestamo = parse.deudaPrestamo || 0;
@@ -3281,7 +3552,13 @@ function recuperarCiudadGuardada() {
 
     if (parse.bairros && Array.isArray(parse.bairros) && parse.bairros.length > 0) {
       estado.bairros = parse.bairros;
-      reconstruirVisualBairros3D();
+    }
+
+    // Limpiar grilla para restaurar los objetos guardados
+    for (let z = 0; z < TAMANHO_GRADE; z++) {
+      for (let x = 0; x < TAMANHO_GRADE; x++) {
+        estado.grade[z][x] = null;
+      }
     }
 
     parse.mapa.forEach(item => {
@@ -3291,6 +3568,7 @@ function recuperarCiudadGuardada() {
     actualizarHUD();
     return true;
   } catch (e) {
+    console.error('Error al recuperar ciudad guardada:', e);
     return false;
   }
 }
@@ -3329,6 +3607,10 @@ function mejorarCalleLocal(gx, gz, nuevoTipo, costo) {
   desenharMiniMapa();
   tocarSonido('construir');
   guardarCiudadEnStorage(false);
+
+  if (socket && socket.connected) {
+    socket.emit('solicitar_mejora_calle', { gx, gz, nuevoTipo, costo });
+  }
 
   const nombreTipo = nuevoTipo === 'estrada_empedrado' ? 'Calle Empedrada' : 'Calle Asfaltada';
   mostrarNotificacion(`✨ ¡Vía mejorada con éxito a ${nombreTipo}!`);
@@ -3396,6 +3678,7 @@ function mostrarDetallesCelula(gx, gz) {
   const btnDesalojar = document.getElementById('btn-desalojar-casa');
   const btnUpgrade = document.getElementById('btn-upgrade-calle');
   const btnMover = document.getElementById('btn-mover-edificio');
+  const btnGirar = document.getElementById('btn-girar-edificio');
   const btnComercio = document.getElementById('btn-entrar-comercio');
   const btnBanco = document.getElementById('btn-entrar-banco');
 
@@ -3406,6 +3689,7 @@ function mostrarDetallesCelula(gx, gz) {
   btnDesalojar.style.display = 'none';
   if (btnUpgrade) btnUpgrade.style.display = 'none';
   if (btnMover) btnMover.style.display = 'none';
+  if (btnGirar) btnGirar.style.display = 'none';
   if (btnComercio) btnComercio.style.display = 'none';
   if (btnBanco) btnBanco.style.display = 'none';
 
@@ -3533,12 +3817,42 @@ function mostrarDetallesCelula(gx, gz) {
     }
   }
 
+  // Acción: Girar Construcción existente
+  if (!esCalle && btnGirar) {
+    zonaAcciones.style.display = 'block';
+    btnGirar.style.display = 'block';
+    btnGirar.onclick = () => girarEdificioSeleccionado(gx, gz);
+  }
+
   // Acción Exclusiva del Alcalde: Mover Construcción de Lugar
   if (jugadorLocal.esAdmin && !esCalle && btnMover) {
     zonaAcciones.style.display = 'block';
     btnMover.style.display = 'block';
     btnMover.onclick = () => iniciarMoverObjeto(gx, gz);
   }
+}
+
+function girarEdificioSeleccionado(gx, gz) {
+  let celda = estado.grade[gz]?.[gx];
+  if (!celda) return;
+  if (celda.esHijo) {
+    gx = celda.rootX;
+    gz = celda.rootZ;
+    celda = estado.grade[gz]?.[gx];
+    if (!celda) return;
+  }
+  if (isQualquerEstrada(gx, gz)) {
+    mostrarNotificacion('ℹ️ Las calles se adaptan automáticamente a las conexiones de la red.');
+    return;
+  }
+
+  celda.rot = ((celda.rot || 0) + 90) % 360;
+  actualizarMeshCelda(gx, gz);
+  desenharMiniMapa();
+  guardarCiudadEnStorage(false);
+  tocarSonido('construir');
+  mostrarNotificacion(`🔄 Construcción orientada a ${celda.rot}°.`);
+  mostrarDetallesCelula(gx, gz);
 }
 
 function seleccionarHerramienta(nome) {
@@ -3566,7 +3880,11 @@ function seleccionarHerramienta(nome) {
 
   const indRot = document.getElementById('indicador-rotacao');
   const btnRotarTouch = document.getElementById('btn-rotar-touch');
-  const precisaRot = ['casa', 'sobrado', 'predio', 'loja', 'posto', 'usina', 'municipalidad'].includes(nome);
+  const precisaRot = [
+    'casa', 'sobrado', 'predio', 'loja', 'padaria', 'mercado',
+    'loja_roupa', 'restaurante', 'loja_veiculos', 'banco',
+    'posto', 'usina', 'municipalidad', 'mover'
+  ].includes(nome);
   if (indRot) indRot.classList.toggle('visivel', precisaRot);
   if (btnRotarTouch) btnRotarTouch.style.display = precisaRot ? 'flex' : 'none';
 
@@ -3608,7 +3926,8 @@ function actualizarPreviewFantasma(gx, gz) {
   const cor = libre ? 0x66bb6a : 0xef5350;
   fantasmaObjeto = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.45 }));
   fantasmaObjeto.position.set(centroX, 1.0, centroZ);
-  fantasmaObjeto.rotation.y = (estado.rotacaoAtual * Math.PI) / 180;
+  const rotFinal = (ferr === 'mover' && estado.objetoMoviendo) ? (estado.objetoMoviendo.rot || 0) : estado.rotacaoAtual;
+  fantasmaObjeto.rotation.y = (rotFinal * Math.PI) / 180;
   cena.add(fantasmaObjeto);
 }
 
@@ -4591,10 +4910,10 @@ try {
   }
 } catch (e) {}
 
-recuperarCiudadGuardada();
+const ciudadRestaurada = recuperarCiudadGuardada();
 
 const centroInicial = Math.floor(TAMANHO_GRADE / 2);
-if (estado.grade[centroInicial][centroInicial] === null) {
+if (!ciudadRestaurada && estado.grade[centroInicial][centroInicial] === null) {
   generarCiudadBase();
 }
 
@@ -4606,9 +4925,10 @@ iniciarInteresBancario();
 actualizarHUD();
 desenharMiniMapa();
 
-// Autoguardado periódico cada 30 segundos
+// Iniciar conexión con el servidor multijugador en tiempo real
+inicializarConexionSocket();
+
+// Autoguardado periódico cada 30 segundos garantizado
 setInterval(() => {
-  if (jugadorLocal.uid) {
-    guardarCiudadEnStorage(false);
-  }
+  guardarCiudadEnStorage(false);
 }, 30000);
