@@ -1006,3 +1006,106 @@ kbd {
     max-width: 90vw;
   }
 }
+
+/* ============================================================
+   ESTILOS DE BARRIOS (HERRAMIENTA DE ALCALDÍA)
+   ============================================================ */
+.bairro-badge {
+  background: rgba(2, 136, 209, 0.18);
+  border: 1px solid rgba(2, 136, 209, 0.45);
+  color: #81d4fa;
+  padding: 4px 10px;
+  border-radius: 20px;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitulo-barrio {
+  font-size: 11px;
+  color: var(--cor-texto-dim);
+  margin-bottom: 12px;
+}
+
+.select-barrio {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(45, 158, 66, 0.4);
+  border-radius: var(--raio);
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+.select-barrio option {
+  background: #0a180f;
+  color: #fff;
+}
+
+.selector-colores-barrio {
+  text-align: left;
+  margin-bottom: 14px;
+}
+.selector-colores-barrio .label-colores {
+  display: block;
+  font-size: 11px;
+  color: var(--cor-texto-dim);
+  margin-bottom: 6px;
+}
+.paleta-colores-barrio {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.btn-cor-bairro {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.btn-cor-bairro:hover {
+  transform: scale(1.15);
+}
+.btn-cor-bairro.activa {
+  border-color: #ffffff;
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================================
+   PÁGINA DEDICADA DE LOGIN / REGISTRO
+   ============================================================ */
+.pantalla-login-body {
+  background: radial-gradient(circle at 50% 30%, #153820 0%, #0d1b11 55%, #050b07 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+.login-box-pagina {
+  width: 360px;
+  max-width: 95vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(45, 158, 66, 0.25);
+}
+.btn-volver-visitante {
+  margin-top: 14px;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  color: var(--cor-texto-dim);
+  font-size: 12px;
+  padding: 10px;
+  border-radius: var(--raio);
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s ease;
+}
+.btn-volver-visitante:hover {
+  border-color: var(--cor-secundaria);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}

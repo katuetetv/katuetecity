@@ -77,6 +77,10 @@ const estado = {
   rotacaoAtual: 0,
   celulaSelecionada: null,
   grade: [], // [z][x] -> { tipo, rot, mesh, inquilino, autor }
+  bairros: [], // [ { id, nome, tipo, cor, x1, z1, x2, z2 } ]
+  seleccionBairroInicio: null,
+  meshPreviewSeleccionBairro: null,
+  barrioEditandoId: null,
   arrastandoEstrada: false,
   inicioArrasto: null
 };
@@ -193,12 +197,10 @@ const btnRegistrarse = document.getElementById('btn-registrarse');
 const btnGoogle = document.getElementById('btn-google');
 const msgErro = document.getElementById('msg-erro');
 
-// Abrir y Cerrar Modal de Login
-if (btnAbrirLogin && modalLogin) {
+// Redirección a la página dedicada de Login / Registro
+if (btnAbrirLogin) {
   btnAbrirLogin.addEventListener('click', () => {
-    modalLogin.style.display = 'flex';
-    msgErro.textContent = '';
-    campoEmail.focus();
+    window.location.href = 'login.html';
   });
 }
 
@@ -209,7 +211,7 @@ if (btnCerrarLogin && modalLogin) {
 }
 
 // 4.1 BOTÓN CREAR CUENTA (PRIMERO)
-btnRegistrarse.addEventListener('click', async () => {
+btnRegistrarse?.addEventListener('click', async () => {
   msgErro.textContent = '';
   const email = campoEmail.value.trim();
   const password = campoSenha.value;
@@ -221,16 +223,27 @@ btnRegistrarse.addEventListener('click', async () => {
 
   try {
     obtenerAudioContext();
-    await createUserWithEmailAndPassword(auth, email, password);
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const user = cred.user;
+    const esAdmin = email.toLowerCase() === 'katuetecity@katuete.com';
+    try {
+      localStorage.setItem('katuete_session', JSON.stringify({
+        uid: user.uid,
+        nombre: email.split('@')[0],
+        email: user.email,
+        esAdmin,
+        oikos: esAdmin ? 9999999 : 1000
+      }));
+    } catch (e) {}
     mostrarNotificacion('🎉 ¡Cuenta creada con éxito en KatueteCity!');
-    modalLogin.style.display = 'none';
+    if (modalLogin) modalLogin.style.display = 'none';
   } catch (error) {
     mostrarErrorAuth(error.code, error.message);
   }
 });
 
 // 4.2 BOTÓN INICIAR SESIÓN (SEGUNDO)
-formLogin.addEventListener('submit', async (e) => {
+formLogin?.addEventListener('submit', async (e) => {
   e.preventDefault();
   msgErro.textContent = '';
   const email = campoEmail.value.trim().toLowerCase();
@@ -239,35 +252,67 @@ formLogin.addEventListener('submit', async (e) => {
   // Reconocimiento directo para Alcalde / Admin
   if (email === 'katuetecity@katuete.com' && password === 'juniorceo0905') {
     obtenerAudioContext();
+    try {
+      localStorage.setItem('katuete_session', JSON.stringify({
+        uid: 'admin_master',
+        nombre: 'ALCALDE',
+        email: 'katuetecity@katuete.com',
+        esAdmin: true,
+        oikos: 9999999
+      }));
+    } catch (err) {}
     iniciarSesionComoAdmin(email);
-    modalLogin.style.display = 'none';
+    if (modalLogin) modalLogin.style.display = 'none';
     return;
   }
 
   try {
     obtenerAudioContext();
-    await signInWithEmailAndPassword(auth, email, password);
-    modalLogin.style.display = 'none';
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const user = cred.user;
+    const esAdmin = (user.email || '').toLowerCase() === 'katuetecity@katuete.com';
+    try {
+      localStorage.setItem('katuete_session', JSON.stringify({
+        uid: user.uid,
+        nombre: user.displayName || user.email.split('@')[0],
+        email: user.email,
+        esAdmin,
+        oikos: esAdmin ? 9999999 : 1000
+      }));
+    } catch (err) {}
+    if (modalLogin) modalLogin.style.display = 'none';
   } catch (error) {
     mostrarErrorAuth(error.code, error.message);
   }
 });
 
 // 4.3 Iniciar Sesión con Google
-btnGoogle.addEventListener('click', async () => {
+btnGoogle?.addEventListener('click', async () => {
   msgErro.textContent = '';
   try {
     obtenerAudioContext();
-    await signInWithPopup(auth, googleProvider);
-    modalLogin.style.display = 'none';
+    const cred = await signInWithPopup(auth, googleProvider);
+    const user = cred.user;
+    const esAdmin = (user.email || '').toLowerCase() === 'katuetecity@katuete.com';
+    try {
+      localStorage.setItem('katuete_session', JSON.stringify({
+        uid: user.uid,
+        nombre: user.displayName || user.email.split('@')[0],
+        email: user.email,
+        esAdmin,
+        oikos: esAdmin ? 9999999 : 1000
+      }));
+    } catch (err) {}
+    if (modalLogin) modalLogin.style.display = 'none';
   } catch (error) {
     mostrarErrorAuth(error.code, error.message);
   }
 });
 
 // 4.4 Cerrar Sesión
-document.getElementById('btn-desconectar').addEventListener('click', async () => {
+document.getElementById('btn-desconectar')?.addEventListener('click', async () => {
   try {
+    localStorage.removeItem('katuete_session');
     await signOut(auth);
     jugadorLocal.uid = null;
     jugadorLocal.nombre = 'Visitante';
@@ -296,7 +341,19 @@ onAuthStateChanged(auth, (user) => {
 
     if (modalLogin) modalLogin.style.display = 'none';
   } else {
-    // Modo Visitante (el mapa sigue 100% visible y jugable)
+    // Si no hay usuario Firebase pero hay sesión de Alcalde guardada
+    const sesion = localStorage.getItem('katuete_session');
+    if (sesion) {
+      try {
+        const s = JSON.parse(sesion);
+        if (s && s.uid === 'admin_master') {
+          iniciarSesionComoAdmin(s.email);
+          return;
+        }
+      } catch (e) {}
+    }
+
+    // Modo Visitante (el mapa sigue 100% visible y explorable)
     jugadorLocal.uid = null;
     jugadorLocal.nombre = 'Visitante';
     jugadorLocal.email = '';
@@ -455,6 +512,19 @@ function generarCiudadBase() {
   instanciarObjetoLocal('parque', c - 3, c - 11, 0, null, 'Municipio');
   instanciarObjetoLocal('usina', c - 11, c + 11, 0, null, 'Municipio');
   instanciarObjetoLocal('caixaDAgua', c + 11, c + 11, 0, null, 'Municipio');
+
+  // Distrito inicial predeterminado
+  if (!estado.bairros || estado.bairros.length === 0) {
+    estado.bairros = [{
+      id: 'barrio_centro',
+      nome: 'Centro de Katuete',
+      tipo: 'Cívico / Comercial',
+      cor: '#2d9e42',
+      x1: c - 18, z1: c - 18,
+      x2: c + 18, z2: c + 18
+    }];
+  }
+  reconstruirVisualBairros3D();
 }
 
 /* ============================================================
@@ -510,6 +580,7 @@ function iniciarMotor3D() {
   };
 
   configurarEventosInteraccion();
+  reconstruirVisualBairros3D();
   animar();
 }
 
@@ -740,10 +811,25 @@ function criarCaixaDAgua() {
   return grupo;
 }
 
+function isEstrada(x, z) {
+  return celulaValida(x, z) && estado.grade[z]?.[x]?.tipo === 'estrada';
+}
+
 function criarEstradaMesh(gx, gz) {
   const grupo = new THREE.Group();
-  const w = TAMANHO_CELULA;
+  const w = TAMANHO_CELULA; // 4.0
+  const hw = w / 2;         // 2.0
+  const cw = 0.4;           // Ancho del bordillo/acera
+  const hcw = cw / 2;       // 0.2
+  const midLen = w - cw * 2;// 3.2
 
+  // Detección de calles vecinas ortogonales
+  const n = isEstrada(gx, gz - 1);
+  const s = isEstrada(gx, gz + 1);
+  const e = isEstrada(gx + 1, gz);
+  const wst = isEstrada(gx - 1, gz);
+
+  // 1. Asfalto base
   const geoAsfalto = new THREE.BoxGeometry(w, 0.12, w);
   const matAsfalto = new THREE.MeshLambertMaterial({ color: 0x263238 });
   const asfalto = new THREE.Mesh(geoAsfalto, matAsfalto);
@@ -751,18 +837,92 @@ function criarEstradaMesh(gx, gz) {
   asfalto.receiveShadow = true;
   grupo.add(asfalto);
 
+  // 2. Aceras y bordillos adaptativos
   const matCalcada = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
-  const c1 = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, 0.4), matCalcada);
-  c1.position.set(0, 0.07, (w / 2) - 0.2);
-  grupo.add(c1);
 
-  const c2 = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, 0.4), matCalcada);
-  c2.position.set(0, 0.07, -(w / 2) + 0.2);
-  grupo.add(c2);
+  // 4 Esquinas fijas de bordillo
+  const geoCanto = new THREE.BoxGeometry(cw, 0.14, cw);
+  const cNW = new THREE.Mesh(geoCanto, matCalcada);
+  cNW.position.set(-hw + hcw, 0.07, -hw + hcw);
+  grupo.add(cNW);
 
-  const faixa = new THREE.Mesh(new THREE.BoxGeometry(w * 0.5, 0.01, 0.18), new THREE.MeshLambertMaterial({ color: 0xffffff }));
-  faixa.position.y = 0.13;
-  grupo.add(faixa);
+  const cNE = new THREE.Mesh(geoCanto, matCalcada);
+  cNE.position.set(hw - hcw, 0.07, -hw + hcw);
+  grupo.add(cNE);
+
+  const cSW = new THREE.Mesh(geoCanto, matCalcada);
+  cSW.position.set(-hw + hcw, 0.07, hw - hcw);
+  grupo.add(cSW);
+
+  const cSE = new THREE.Mesh(geoCanto, matCalcada);
+  cSE.position.set(hw - hcw, 0.07, hw - hcw);
+  grupo.add(cSE);
+
+  // Tramos rectos de acera en los laterales donde NO hay calle conectada
+  if (!n) {
+    const bN = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.14, cw), matCalcada);
+    bN.position.set(0, 0.07, -hw + hcw);
+    grupo.add(bN);
+  }
+  if (!s) {
+    const bS = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.14, cw), matCalcada);
+    bS.position.set(0, 0.07, hw - hcw);
+    grupo.add(bS);
+  }
+  if (!wst) {
+    const bW = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.14, midLen), matCalcada);
+    bW.position.set(-hw + hcw, 0.07, 0);
+    grupo.add(bW);
+  }
+  if (!e) {
+    const bE = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.14, midLen), matCalcada);
+    bE.position.set(hw - hcw, 0.07, 0);
+    grupo.add(bE);
+  }
+
+  // 3. Pintura de señalización vial blanca adaptable al sentido
+  const matFaixa = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const esp = 0.16;
+  const totalConex = (n ? 1 : 0) + (s ? 1 : 0) + (e ? 1 : 0) + (wst ? 1 : 0);
+
+  if (totalConex === 0) {
+    // Calle aislada: línea estándar horizontal
+    const f = new THREE.Mesh(new THREE.BoxGeometry(w * 0.6, 0.01, esp), matFaixa);
+    f.position.y = 0.13;
+    grupo.add(f);
+  } else if ((e || wst) && !n && !s) {
+    // Recta horizontal continua
+    const f = new THREE.Mesh(new THREE.BoxGeometry(w, 0.01, esp), matFaixa);
+    f.position.y = 0.13;
+    grupo.add(f);
+  } else if ((n || s) && !e && !wst) {
+    // Recta vertical continua
+    const f = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, w), matFaixa);
+    f.position.y = 0.13;
+    grupo.add(f);
+  } else {
+    // Cruces, rotondas, curvas (L) o cruces en T: líneas ramificadas al centro
+    if (n) {
+      const fN = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, hw), matFaixa);
+      fN.position.set(0, 0.13, -hw / 2);
+      grupo.add(fN);
+    }
+    if (s) {
+      const fS = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, hw), matFaixa);
+      fS.position.set(0, 0.13, hw / 2);
+      grupo.add(fS);
+    }
+    if (wst) {
+      const fW = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.01, esp), matFaixa);
+      fW.position.set(-hw / 2, 0.13, 0);
+      grupo.add(fW);
+    }
+    if (e) {
+      const fE = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.01, esp), matFaixa);
+      fE.position.set(hw / 2, 0.13, 0);
+      grupo.add(fE);
+    }
+  }
 
   const { x, z } = gradeParaMundo(gx, gz);
   grupo.position.set(x, 0, z);
@@ -772,6 +932,99 @@ function criarEstradaMesh(gx, gz) {
 /* ============================================================
    8. GESTIÓN DEL MAPA Y RENDERIZADO DE CHUNKS
    ============================================================ */
+function criarEtiquetaEdificio(tipo, inquilino) {
+  let textoPrincipal = '';
+  let colorFondo = 'rgba(20, 25, 35, 0.88)';
+  let colorBorde = '#90caf9';
+  let colorTexto = '#ffffff';
+  let alturaY = 4.8;
+
+  const esVivienda = ['casa', 'sobrado', 'predio'].includes(tipo);
+
+  if (esVivienda) {
+    if (inquilino) {
+      textoPrincipal = `🏠 ${inquilino}`;
+      colorFondo = 'rgba(13, 71, 161, 0.92)';
+      colorBorde = '#64b5f6';
+      colorTexto = '#ffffff';
+    } else {
+      textoPrincipal = '🏷️ Aluga-se';
+      colorFondo = 'rgba(230, 81, 0, 0.94)';
+      colorBorde = '#ffb74d';
+      colorTexto = '#fffde7';
+    }
+    alturaY = tipo === 'predio' ? 19.5 : (tipo === 'sobrado' ? 8.4 : 4.8);
+  } else {
+    switch (tipo) {
+      case 'loja':
+        textoPrincipal = '🏪 Tienda';
+        colorFondo = 'rgba(239, 108, 0, 0.9)';
+        colorBorde = '#ffd54f';
+        alturaY = 5.2;
+        break;
+      case 'posto':
+        textoPrincipal = '⛽ Gasolinera';
+        colorFondo = 'rgba(198, 40, 40, 0.9)';
+        colorBorde = '#ef9a9a';
+        alturaY = 4.8;
+        break;
+      case 'usina':
+        textoPrincipal = '⚡ Usina';
+        colorFondo = 'rgba(38, 50, 56, 0.92)';
+        colorBorde = '#b0bec5';
+        alturaY = 8.5;
+        break;
+      case 'caixaDAgua':
+        textoPrincipal = '💧 Depósito';
+        colorFondo = 'rgba(0, 131, 143, 0.92)';
+        colorBorde = '#80deea';
+        alturaY = 12.5;
+        break;
+      case 'parque':
+        textoPrincipal = '🌳 Parque';
+        colorFondo = 'rgba(46, 125, 50, 0.9)';
+        colorBorde = '#a5d6a7';
+        alturaY = 4.2;
+        break;
+      default:
+        return null;
+    }
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 76;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = colorFondo;
+  if (ctx.roundRect) {
+    ctx.roundRect(6, 6, 244, 64, 16);
+  } else {
+    ctx.rect(6, 6, 244, 64);
+  }
+  ctx.fill();
+
+  ctx.strokeStyle = colorBorde;
+  ctx.lineWidth = 5;
+  ctx.stroke();
+
+  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = colorTexto;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(textoPrincipal, 128, 38);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: true, depthWrite: false });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.scale.set(6.2, 1.85, 1);
+  sprite.position.set(0, alturaY, 0);
+  sprite.name = 'etiqueta_edificio';
+
+  return sprite;
+}
+
 function criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino = null, autor = 'Municipio') {
   let mesh = null;
   const { x, z } = gradeParaMundo(gx, gz);
@@ -791,6 +1044,10 @@ function criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino = null, autor = 'Muni
 
   if (tipo !== 'estrada' && mesh) {
     mesh.position.set(x, 0, z);
+    const etiqueta = criarEtiquetaEdificio(tipo, inquilino);
+    if (etiqueta) {
+      mesh.add(etiqueta);
+    }
   }
 
   if (mesh) {
@@ -909,6 +1166,37 @@ function procesarFilaChunks() {
   }
 }
 
+function actualizarMeshCelda(gx, gz) {
+  if (!celulaValida(gx, gz)) return;
+  const celda = estado.grade[gz]?.[gx];
+  if (!celda) return;
+
+  const { cx, cz } = celulaParaChunk(gx, gz);
+  const ch = chunkManager.chunksCarregados.get(obtenerIdChunk(cx, cz));
+  if (ch) {
+    if (celda.mesh && celda.mesh.parent) {
+      celda.mesh.parent.remove(celda.mesh);
+    }
+    const rotRad = ((celda.rot || 0) * Math.PI) / 180;
+    const nuevoMesh = criarMeshParaTipo(celda.tipo, rotRad, gx, gz, celda.inquilino, celda.autor);
+    if (nuevoMesh) {
+      celda.mesh = nuevoMesh;
+      ch.grupo.add(nuevoMesh);
+    }
+  }
+}
+
+function actualizarVecinosEstrada(gx, gz) {
+  const deltas = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  deltas.forEach(([dx, dz]) => {
+    const nx = gx + dx;
+    const nz = gz + dz;
+    if (isEstrada(nx, nz)) {
+      actualizarMeshCelda(nx, nz);
+    }
+  });
+}
+
 function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 'Municipio') {
   if (!celulaValida(gx, gz)) return;
   eliminarObjetoLocal(gx, gz);
@@ -925,17 +1213,239 @@ function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 
       ch.grupo.add(mesh);
     }
   }
+
+  // Si se coloca una calle, actualizar automáticamente las conexiones de sus vecinas
+  if (tipo === 'estrada') {
+    actualizarVecinosEstrada(gx, gz);
+  }
 }
 
 function eliminarObjetoLocal(gx, gz) {
   if (!celulaValida(gx, gz)) return;
   const celda = estado.grade[gz]?.[gx];
   if (celda) {
+    const eraEstrada = celda.tipo === 'estrada';
     if (celda.mesh && celda.mesh.parent) {
       celda.mesh.parent.remove(celda.mesh);
     }
     estado.grade[gz][gx] = null;
+    if (eraEstrada) {
+      actualizarVecinosEstrada(gx, gz);
+    }
   }
+}
+
+/* ============================================================
+   8.1 SISTEMA DE DELIMITACIÓN Y VISUALIZACIÓN DE BARRIOS (ALCALDÍA)
+   ============================================================ */
+let grupoBairros3D = null;
+let colorBarrioSeleccionado = '#2d9e42';
+
+function criarSpriteTextoBarrio(texto, tipo, cor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = 'rgba(10, 25, 15, 0.9)';
+  if (ctx.roundRect) {
+    ctx.roundRect(10, 10, 492, 140, 24);
+  } else {
+    ctx.rect(10, 10, 492, 140);
+  }
+  ctx.fill();
+
+  ctx.strokeStyle = cor || '#2d9e42';
+  ctx.lineWidth = 8;
+  ctx.stroke();
+
+  ctx.font = 'bold 44px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.fillText(`📍 ${texto}`, 256, 75);
+
+  ctx.font = '600 24px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = cor || '#81d4fa';
+  ctx.fillText(tipo.toUpperCase(), 256, 118);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.95 });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(36, 11, 1);
+  return sprite;
+}
+
+function reconstruirVisualBairros3D() {
+  if (!cena) return;
+  if (grupoBairros3D) {
+    cena.remove(grupoBairros3D);
+    grupoBairros3D = null;
+  }
+
+  grupoBairros3D = new THREE.Group();
+
+  estado.bairros.forEach(b => {
+    const minGx = Math.min(b.x1, b.x2);
+    const maxGx = Math.max(b.x1, b.x2);
+    const minGz = Math.min(b.z1, b.z2);
+    const maxGz = Math.max(b.z1, b.z2);
+
+    const p1 = gradeParaMundo(minGx, minGz);
+    const p2 = gradeParaMundo(maxGx, maxGz);
+
+    const hw = TAMANHO_CELULA / 2;
+    const minX = Math.min(p1.x, p2.x) - hw;
+    const maxX = Math.max(p1.x, p2.x) + hw;
+    const minZ = Math.min(p1.z, p2.z) - hw;
+    const maxZ = Math.max(p1.z, p2.z) + hw;
+
+    const centroX = (minX + maxX) / 2;
+    const centroZ = (minZ + maxZ) / 2;
+
+    // 1. Líneas perimetrales en el suelo
+    const pts = [
+      new THREE.Vector3(minX, 0.08, minZ),
+      new THREE.Vector3(maxX, 0.08, minZ),
+      new THREE.Vector3(maxX, 0.08, maxZ),
+      new THREE.Vector3(minX, 0.08, maxZ),
+      new THREE.Vector3(minX, 0.08, minZ)
+    ];
+    const geoLinha = new THREE.BufferGeometry().setFromPoints(pts);
+    const matLinha = new THREE.LineBasicMaterial({ color: new THREE.Color(b.cor || '#2d9e42'), linewidth: 2 });
+    const borda = new THREE.Line(geoLinha, matLinha);
+    grupoBairros3D.add(borda);
+
+    // 2. Cartel flotante 3D sobre el barrio
+    const cartel = criarSpriteTextoBarrio(b.nome, b.tipo || 'Distrito', b.cor);
+    cartel.position.set(centroX, 16, centroZ);
+    grupoBairros3D.add(cartel);
+  });
+
+  cena.add(grupoBairros3D);
+  desenharMiniMapa();
+}
+
+function actualizarPreviewSeleccionBairro(g1, g2) {
+  limparPreviewSeleccionBairro();
+  if (!g1 || !g2 || !cena) return;
+
+  const minGx = Math.min(g1.gx, g2.gx);
+  const maxGx = Math.max(g1.gx, g2.gx);
+  const minGz = Math.min(g1.gz, g2.gz);
+  const maxGz = Math.max(g1.gz, g2.gz);
+
+  const p1 = gradeParaMundo(minGx, minGz);
+  const p2 = gradeParaMundo(maxGx, maxGz);
+  const hw = TAMANHO_CELULA / 2;
+
+  const minX = Math.min(p1.x, p2.x) - hw;
+  const maxX = Math.max(p1.x, p2.x) + hw;
+  const minZ = Math.min(p1.z, p2.z) - hw;
+  const maxZ = Math.max(p1.z, p2.z) + hw;
+
+  const ancho = maxX - minX;
+  const prof = maxZ - minZ;
+  const centroX = (minX + maxX) / 2;
+  const centroZ = (minZ + maxZ) / 2;
+
+  const geo = new THREE.PlaneGeometry(ancho, prof);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xfbc02d, transparent: true, opacity: 0.28, side: THREE.DoubleSide });
+  estado.meshPreviewSeleccionBairro = new THREE.Mesh(geo, mat);
+  estado.meshPreviewSeleccionBairro.rotation.x = -Math.PI / 2;
+  estado.meshPreviewSeleccionBairro.position.set(centroX, 0.09, centroZ);
+  cena.add(estado.meshPreviewSeleccionBairro);
+}
+
+function limparPreviewSeleccionBairro() {
+  if (estado.meshPreviewSeleccionBairro && cena) {
+    cena.remove(estado.meshPreviewSeleccionBairro);
+    estado.meshPreviewSeleccionBairro = null;
+  }
+}
+
+function obtenerBarrioEn(gx, gz) {
+  for (const b of estado.bairros) {
+    const minX = Math.min(b.x1, b.x2);
+    const maxX = Math.max(b.x1, b.x2);
+    const minZ = Math.min(b.z1, b.z2);
+    const maxZ = Math.max(b.z1, b.z2);
+    if (gx >= minX && gx <= maxX && gz >= minZ && gz <= maxZ) {
+      return b;
+    }
+  }
+  return null;
+}
+
+function actualizarBadgeBarrioActual() {
+  if (!controles) return;
+  const { gx, gz } = mundoParaGrade(controles.target.x, controles.target.z);
+  const b = obtenerBarrioEn(gx, gz);
+  const elTxt = document.getElementById('stat-bairro-nombre');
+  const badge = document.getElementById('badge-bairro-contenedor');
+  if (b) {
+    if (elTxt) elTxt.textContent = b.nome;
+    if (badge) {
+      badge.style.display = 'inline-flex';
+      badge.style.borderColor = b.cor || '#0288d1';
+      badge.style.color = b.cor || '#81d4fa';
+    }
+  } else {
+    if (elTxt) elTxt.textContent = 'Exterior';
+    if (badge) {
+      badge.style.display = 'inline-flex';
+      badge.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+      badge.style.color = 'var(--cor-texto-dim)';
+    }
+  }
+}
+
+function abrirModalCrearBarrio(g1, g2) {
+  const minGx = Math.min(g1.gx, g2.gx);
+  const maxGx = Math.max(g1.gx, g2.gx);
+  const minGz = Math.min(g1.gz, g2.gz);
+  const maxGz = Math.max(g1.gz, g2.gz);
+
+  const modal = document.getElementById('modal-barrio');
+  const infoCoords = document.getElementById('info-coords-barrio');
+  const inputNome = document.getElementById('campo-nombre-barrio');
+  const selectTipo = document.getElementById('campo-tipo-barrio');
+  const btnEliminar = document.getElementById('btn-eliminar-barrio');
+
+  if (!modal) return;
+
+  const anchoCeldas = maxGx - minGx + 1;
+  const profCeldas = maxGz - minGz + 1;
+  infoCoords.textContent = `Región seleccionada: (${minGx}, ${minGz}) a (${maxGx}, ${maxGz}) — ${anchoCeldas} x ${profCeldas} celdas`;
+
+  const barrioExistente = estado.bairros.find(b => 
+    (minGx >= b.x1 && maxGx <= b.x2 && minGz >= b.z1 && maxGz <= b.z2) ||
+    (b.x1 >= minGx && b.x2 <= maxGx && b.z1 >= minGz && b.z2 <= maxGz)
+  );
+
+  if (barrioExistente) {
+    estado.barrioEditandoId = barrioExistente.id;
+    inputNome.value = barrioExistente.nome;
+    if (selectTipo) selectTipo.value = barrioExistente.tipo || 'Residencial';
+    colorBarrioSeleccionado = barrioExistente.cor || '#2d9e42';
+    if (btnEliminar) btnEliminar.style.display = 'block';
+  } else {
+    estado.barrioEditandoId = null;
+    inputNome.value = `Barrio ${estado.bairros.length + 1}`;
+    if (btnEliminar) btnEliminar.style.display = 'none';
+  }
+
+  document.querySelectorAll('.btn-cor-bairro').forEach(b => {
+    b.classList.toggle('activa', b.dataset.cor === colorBarrioSeleccionado);
+  });
+
+  modal.dataset.minGx = minGx;
+  modal.dataset.maxGx = maxGx;
+  modal.dataset.minGz = minGz;
+  modal.dataset.maxGz = maxGz;
+
+  modal.style.display = 'flex';
+  inputNome.focus();
 }
 
 /* ============================================================
@@ -1030,9 +1540,13 @@ function configurarEventosInteraccion() {
       }
       actualizarCoordenadasPorPixel(e.touches[0].clientX, e.touches[0].clientY);
       const pt = obtenerInterseccionChao();
-      if (pt && !touchArrastrado && estado.ferramentaAtiva !== 'ponteiro' && estado.ferramentaAtiva !== 'demolir') {
+      if (pt && !touchArrastrado) {
         const { gx, gz } = mundoParaGrade(pt.x, pt.z);
-        actualizarPreviewFantasma(gx, gz);
+        if (estado.ferramentaAtiva === 'delimitar_bairro' && estado.seleccionBairroInicio) {
+          actualizarPreviewSeleccionBairro(gx, gz);
+        } else if (estado.ferramentaAtiva !== 'ponteiro' && estado.ferramentaAtiva !== 'demolir' && estado.ferramentaAtiva !== 'delimitar_bairro') {
+          actualizarPreviewFantasma(gx, gz);
+        }
       }
     }
   }, { passive: true });
@@ -1059,6 +1573,13 @@ function configurarEventosInteraccion() {
     }
 
     const { gx, gz } = mundoParaGrade(pt.x, pt.z);
+
+    if (estado.ferramentaAtiva === 'delimitar_bairro') {
+      if (estado.seleccionBairroInicio) {
+        actualizarPreviewSeleccionBairro(gx, gz);
+      }
+      return;
+    }
 
     if (estado.arrastandoEstrada && estado.inicioArrasto) {
       const camino = obtenerCaminoL(estado.inicioArrasto, { gx, gz });
@@ -1127,6 +1648,10 @@ function configurarEventosInteraccion() {
     } else if (e.key === 'Escape') {
       seleccionarHerramienta('ponteiro');
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (!jugadorLocal.esAdmin) {
+        mostrarNotificacion('🔒 Opción de demolición exclusiva del Alcalde.');
+        return;
+      }
       if (estado.celulaSelecionada) {
         eliminarObjetoLocal(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
         tocarSonido('demolir');
@@ -1170,6 +1695,11 @@ function configurarEventosInteraccion() {
 
   // Dock: Botón Construir
   document.getElementById('dock-btn-construir')?.addEventListener('click', () => {
+    if (!jugadorLocal.uid) {
+      mostrarNotificacion('🔒 Debes iniciar sesión para construir. Redirigiendo a Login...');
+      setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+      return;
+    }
     const visible = menuConstruccion.style.display === 'block';
     cerrarTodosLosMenus();
     if (!visible) {
@@ -1180,6 +1710,11 @@ function configurarEventosInteraccion() {
 
   // Dock: Botón Empleo
   document.getElementById('dock-btn-trabajar')?.addEventListener('click', () => {
+    if (!jugadorLocal.uid) {
+      mostrarNotificacion('🔒 Debes iniciar sesión para trabajar y ganar Oikos. Redirigiendo a Login...');
+      setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+      return;
+    }
     const visible = menuTrabajo.style.display === 'block';
     cerrarTodosLosMenus();
     if (!visible) {
@@ -1199,11 +1734,126 @@ function configurarEventosInteraccion() {
     }
   });
 
-  // Dock: Botón Demoler
+  // Dock: Botón Demoler (Exclusivo Alcalde)
   document.getElementById('dock-btn-demoler')?.addEventListener('click', () => {
     cerrarTodosLosMenus();
+    if (!jugadorLocal.esAdmin) {
+      mostrarNotificacion('🔒 Opción de demolición exclusiva del Alcalde.');
+      return;
+    }
     seleccionarHerramienta('demolir');
     actualizarDockActivo('dock-btn-demoler');
+  });
+
+  // Dock: Botón Barrios (Exclusivo Alcalde)
+  document.getElementById('dock-btn-bairro')?.addEventListener('click', () => {
+    cerrarTodosLosMenus();
+    if (!jugadorLocal.esAdmin) {
+      mostrarNotificacion('🔒 Herramienta exclusiva del Alcalde.');
+      return;
+    }
+    seleccionarHerramienta('delimitar_bairro');
+    actualizarDockActivo('dock-btn-bairro');
+    mostrarNotificacion('🏷️ Modo Barrios: Haz clic o toca en dos esquinas del mapa para delimitar la región.');
+  });
+
+  // Modal de Barrios: Selección de Color
+  document.querySelectorAll('.btn-cor-bairro').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-cor-bairro').forEach(b => b.classList.remove('activa'));
+      btn.classList.add('activa');
+      colorBarrioSeleccionado = btn.dataset.cor || '#2d9e42';
+    });
+  });
+
+  // Modal de Barrios: Botón Cerrar
+  const modalBarrio = document.getElementById('modal-barrio');
+  document.getElementById('btn-cerrar-modal-barrio')?.addEventListener('click', () => {
+    if (modalBarrio) modalBarrio.style.display = 'none';
+    estado.barrioEditandoId = null;
+    estado.seleccionBairroInicio = null;
+    limparPreviewSeleccionBairro();
+  });
+
+  // Modal de Barrios: Guardar / Submit
+  document.getElementById('form-barrio')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!jugadorLocal.esAdmin) {
+      mostrarNotificacion('🔒 Solo el Alcalde puede renombrar o crear barrios.');
+      return;
+    }
+    const inputNome = document.getElementById('campo-nombre-barrio');
+    const selectTipo = document.getElementById('campo-tipo-barrio');
+    const nome = inputNome ? inputNome.value.trim() : 'Nuevo Barrio';
+    const tipo = selectTipo ? selectTipo.value : 'Residencial';
+    const minGx = parseInt(modalBarrio.dataset.minGx, 10);
+    const maxGx = parseInt(modalBarrio.dataset.maxGx, 10);
+    const minGz = parseInt(modalBarrio.dataset.minGz, 10);
+    const maxGz = parseInt(modalBarrio.dataset.maxGz, 10);
+
+    if (!nome) {
+      mostrarNotificacion('⚠️ Introduce un nombre válido para el barrio.');
+      return;
+    }
+
+    if (estado.barrioEditandoId) {
+      const idx = estado.bairros.findIndex(b => b.id === estado.barrioEditandoId);
+      if (idx !== -1) {
+        estado.bairros[idx].nome = nome;
+        estado.bairros[idx].tipo = tipo;
+        estado.bairros[idx].cor = colorBarrioSeleccionado;
+      }
+    } else {
+      estado.bairros.push({
+        id: 'barrio_' + Date.now(),
+        nome,
+        tipo,
+        cor: colorBarrioSeleccionado,
+        x1: minGx,
+        x2: maxGx,
+        z1: minGz,
+        z2: maxGz
+      });
+    }
+
+    try {
+      localStorage.setItem('katuete_global_bairros', JSON.stringify(estado.bairros));
+    } catch(err) {}
+
+    reconstruirVisualBairros3D();
+    desenharMiniMapa();
+    actualizarBadgeBarrioActual();
+    guardarCiudadEnStorage(false);
+
+    if (modalBarrio) modalBarrio.style.display = 'none';
+    estado.barrioEditandoId = null;
+    estado.seleccionBairroInicio = null;
+    limparPreviewSeleccionBairro();
+
+    tocarSonido('construir');
+    mostrarNotificacion(`🏷️ Barrio "${nome}" guardado exitosamente.`);
+  });
+
+  // Modal de Barrios: Eliminar Barrio
+  document.getElementById('btn-eliminar-barrio')?.addEventListener('click', () => {
+    if (!estado.barrioEditandoId) return;
+    estado.bairros = estado.bairros.filter(b => b.id !== estado.barrioEditandoId);
+    try {
+      localStorage.setItem('katuete_global_bairros', JSON.stringify(estado.bairros));
+    } catch(err) {}
+
+    reconstruirVisualBairros3D();
+    desenharMiniMapa();
+    actualizarBadgeBarrioActual();
+    guardarCiudadEnStorage(false);
+
+    if (modalBarrio) modalBarrio.style.display = 'none';
+    estado.barrioEditandoId = null;
+    estado.seleccionBairroInicio = null;
+    limparPreviewSeleccionBairro();
+
+    tocarSonido('demolir');
+    mostrarNotificacion('🗑️ Barrio eliminado.');
   });
 
   // Sub-Pestañas de Categorías de Construcción
@@ -1269,11 +1919,42 @@ function procesarClicEnGrilla(gx, gz) {
   if (ferr === 'ponteiro') {
     estado.celulaSelecionada = { gx, gz };
     mostrarDetallesCelula(gx, gz);
-  } else if (ferr === 'demolir') {
+    return;
+  }
+
+  // Visitantes: Bloquear cualquier acción de construcción / modificación
+  if (!jugadorLocal.uid) {
+    mostrarNotificacion('🔒 Modo visitante: Debes iniciar sesión para construir o modificar la ciudad.');
+    setTimeout(() => { window.location.href = 'login.html'; }, 1200);
+    return;
+  }
+
+  if (ferr === 'demolir') {
+    if (!jugadorLocal.esAdmin) {
+      mostrarNotificacion('🔒 Opción de demolición exclusiva del Alcalde.');
+      return;
+    }
     eliminarObjetoLocal(gx, gz);
     tocarSonido('demolir');
     desenharMiniMapa();
     mostrarNotificacion('💥 Edificio demolido.');
+  } else if (ferr === 'delimitar_bairro') {
+    if (!jugadorLocal.esAdmin) {
+      mostrarNotificacion('🔒 Herramienta exclusiva del Alcalde.');
+      return;
+    }
+    if (!estado.seleccionBairroInicio) {
+      estado.seleccionBairroInicio = { gx, gz };
+      actualizarPreviewSeleccionBairro(gx, gz);
+      tocarSonido('construir');
+      mostrarNotificacion(`📍 Punto inicial fijado en (${gx}, ${gz}). Haz clic en la esquina opuesta.`);
+    } else {
+      const p1 = estado.seleccionBairroInicio;
+      const p2 = { gx, gz };
+      limparPreviewSeleccionBairro();
+      estado.seleccionBairroInicio = null;
+      abrirModalCrearBarrio(p1, p2);
+    }
   } else {
     const costo = jugadorLocal.esAdmin ? 0 : (COSTOS_CONSTRUCCION[ferr] || 0);
     if (!jugadorLocal.esAdmin && jugadorLocal.oikos < costo) {
@@ -1302,6 +1983,12 @@ function procesarClicEnGrilla(gx, gz) {
    10. TRABAJO Y ALQUILER LOCAL
    ============================================================ */
 function iniciarTurnoTrabajoLocal() {
+  if (!jugadorLocal.uid) {
+    mostrarNotificacion('🔒 Debes iniciar sesión para trabajar. Redirigiendo a Login...');
+    setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+    return;
+  }
+
   jugadorLocal.trabajando = true;
   jugadorLocal.duracionTurnoTotal = 10;
   jugadorLocal.tiempoTurnoRestante = 10;
@@ -1326,6 +2013,12 @@ function iniciarTurnoTrabajoLocal() {
 }
 
 function alquilarCasaLocal(gx, gz) {
+  if (!jugadorLocal.uid) {
+    mostrarNotificacion('🔒 Inicia sesión para alquilar una propiedad. Redirigiendo a Login...');
+    setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+    return;
+  }
+
   const celda = estado.grade[gz]?.[gx];
   if (!celda || !['casa', 'sobrado', 'predio'].includes(celda.tipo)) return;
 
@@ -1344,6 +2037,7 @@ function alquilarCasaLocal(gx, gz) {
   celda.inquilino = jugadorLocal.nombre;
   jugadorLocal.casasAlquiladas.push({ gx, gz });
 
+  actualizarMeshCelda(gx, gz);
   actualizarHUD();
   mostrarDetallesCelula(gx, gz);
   guardarCiudadEnStorage(false);
@@ -1358,6 +2052,7 @@ function desalojarCasaLocal(gx, gz) {
   celda.inquilino = null;
   jugadorLocal.casasAlquiladas = jugadorLocal.casasAlquiladas.filter(c => !(c.gx === gx && c.gz === gz));
 
+  actualizarMeshCelda(gx, gz);
   mostrarDetallesCelula(gx, gz);
   guardarCiudadEnStorage(false);
   mostrarNotificacion('🚪 Has entregado las llaves de la vivienda.');
@@ -1376,7 +2071,10 @@ function iniciarCicloAlquilerLocal() {
     } else {
       mostrarNotificacion('⚠️ Saldo insuficiente para pagar el alquiler. Tus contratos han sido cancelados.');
       jugadorLocal.casasAlquiladas.forEach(({ gx, gz }) => {
-        if (estado.grade[gz]?.[gx]) estado.grade[gz][gx].inquilino = null;
+        if (estado.grade[gz]?.[gx]) {
+          estado.grade[gz][gx].inquilino = null;
+          actualizarMeshCelda(gx, gz);
+        }
       });
       jugadorLocal.casasAlquiladas = [];
       guardarCiudadEnStorage(false);
@@ -1396,6 +2094,7 @@ function guardarCiudadEnStorage(notificar = true) {
     nombre: jugadorLocal.nombre,
     oikos: jugadorLocal.oikos,
     casasAlquiladas: jugadorLocal.casasAlquiladas,
+    bairros: estado.bairros || [],
     mapa: []
   };
 
@@ -1409,6 +2108,9 @@ function guardarCiudadEnStorage(notificar = true) {
   }
 
   localStorage.setItem(clave, JSON.stringify(guardado));
+  if (estado.bairros && estado.bairros.length > 0) {
+    localStorage.setItem('katuete_global_bairros', JSON.stringify(estado.bairros));
+  }
   if (notificar) {
     tocarSonido('monedas');
     mostrarNotificacion('💾 ¡Progreso guardado con éxito en tu cuenta!');
@@ -1425,6 +2127,11 @@ function recuperarCiudadGuardada() {
     const parse = JSON.parse(data);
     jugadorLocal.oikos = parse.oikos ?? 1000;
     jugadorLocal.casasAlquiladas = parse.casasAlquiladas || [];
+
+    if (parse.bairros && Array.isArray(parse.bairros) && parse.bairros.length > 0) {
+      estado.bairros = parse.bairros;
+      reconstruirVisualBairros3D();
+    }
 
     parse.mapa.forEach(item => {
       instanciarObjetoLocal(item.tipo, item.x, item.z, item.rot || 0, item.inquilino, item.autor);
@@ -1461,9 +2168,14 @@ function mostrarDetallesCelula(gx, gz) {
   btnAlquilar.style.display = 'none';
   btnDesalojar.style.display = 'none';
 
+  const barrio = obtenerBarrioEn(gx, gz);
+  const infoBarrio = barrio 
+    ? `<span style="color:${barrio.cor || '#81d4fa'}">📍 Barrio: <strong>${barrio.nome}</strong> (${barrio.tipo || 'Zona'})</span><br/>`
+    : `<span style="color:var(--cor-texto-dim)">📍 Sector sin barrio asignado</span><br/>`;
+
   if (!celda) {
     titulo.textContent = '🌿 Terreno Libre';
-    detalles.innerHTML = `Sector: (${gx}, ${gz})<br/><small>Selecciona 'Construir' en el menú inferior para edificar.</small>`;
+    detalles.innerHTML = `Sector: (${gx}, ${gz})<br/>${infoBarrio}<small>Selecciona 'Construir' en el menú inferior para edificar.</small>`;
     card.style.display = 'block';
     return;
   }
@@ -1477,6 +2189,7 @@ function mostrarDetallesCelula(gx, gz) {
   
   detalles.innerHTML = `
     Ubicación: Sector (${gx}, ${gz})<br/>
+    ${infoBarrio}
     Constructor: <em>${celda.autor || 'Municipio'}</em><br/>
     ${esVivienda ? `Estado: ${estadoAlquiler}<br/><small>Alquiler: 150 Oikos / ciclo</small>` : ''}
   `;
@@ -1494,6 +2207,16 @@ function mostrarDetallesCelula(gx, gz) {
 }
 
 function seleccionarHerramienta(nome) {
+  if (nome === 'demolir' && !jugadorLocal.esAdmin) {
+    mostrarNotificacion('🔒 Opción de demolición exclusiva del Alcalde.');
+    return;
+  }
+
+  if (estado.ferramentaAtiva === 'delimitar_bairro' && nome !== 'delimitar_bairro') {
+    estado.seleccionBairroInicio = null;
+    limparPreviewSeleccionBairro();
+  }
+
   estado.ferramentaAtiva = nome;
   limparFantasma();
   limparPreviewLinhaEstrada();
@@ -1510,13 +2233,14 @@ function seleccionarHerramienta(nome) {
 
   const canvas = document.getElementById('canvas-jogo');
   if (canvas) {
-    canvas.classList.toggle('modo-construir', nome !== 'ponteiro' && nome !== 'demolir');
+    canvas.classList.toggle('modo-construir', nome !== 'ponteiro' && nome !== 'demolir' && nome !== 'delimitar_bairro');
     canvas.classList.toggle('modo-demolir', nome === 'demolir');
   }
 
-  // Si selecciona puntero o demoler, actualiza el dock
+  // Actualiza selección en el dock
   if (nome === 'ponteiro') actualizarDockActivo('dock-btn-puntero');
   if (nome === 'demolir') actualizarDockActivo('dock-btn-demoler');
+  if (nome === 'delimitar_bairro') actualizarDockActivo('dock-btn-bairro');
 }
 
 function actualizarPreviewFantasma(gx, gz) {
@@ -1585,6 +2309,8 @@ function actualizarHUD() {
   const badgeUsuarioContenedor = badgeNombre ? badgeNombre.closest('.user-badge') : null;
   const saldoTexto = document.getElementById('stat-oikos-saldo');
   const btnAdmin = document.getElementById('btn-panel-admin');
+  const btnDockBairro = document.getElementById('dock-btn-bairro');
+  const btnDockDemoler = document.getElementById('dock-btn-demoler');
   const btnAbrirLogin = document.getElementById('btn-abrir-login');
   const btnDesconectar = document.getElementById('btn-desconectar');
 
@@ -1593,6 +2319,8 @@ function actualizarHUD() {
     badgeUsuarioContenedor?.classList.add('admin');
     if (saldoTexto) saldoTexto.textContent = '∞';
     if (btnAdmin) btnAdmin.style.display = 'inline-flex';
+    if (btnDockBairro) btnDockBairro.style.display = 'inline-flex';
+    if (btnDockDemoler) btnDockDemoler.style.display = 'inline-flex';
     if (btnAbrirLogin) btnAbrirLogin.style.display = 'none';
     if (btnDesconectar) btnDesconectar.style.display = 'inline-block';
   } else if (jugadorLocal.uid) {
@@ -1600,6 +2328,8 @@ function actualizarHUD() {
     badgeUsuarioContenedor?.classList.remove('admin');
     if (saldoTexto) saldoTexto.textContent = Number(jugadorLocal.oikos).toLocaleString('es-PY');
     if (btnAdmin) btnAdmin.style.display = 'none';
+    if (btnDockBairro) btnDockBairro.style.display = 'none';
+    if (btnDockDemoler) btnDockDemoler.style.display = 'none';
     if (btnAbrirLogin) btnAbrirLogin.style.display = 'none';
     if (btnDesconectar) btnDesconectar.style.display = 'inline-block';
   } else {
@@ -1608,9 +2338,13 @@ function actualizarHUD() {
     badgeUsuarioContenedor?.classList.remove('admin');
     if (saldoTexto) saldoTexto.textContent = Number(jugadorLocal.oikos).toLocaleString('es-PY');
     if (btnAdmin) btnAdmin.style.display = 'none';
+    if (btnDockBairro) btnDockBairro.style.display = 'none';
+    if (btnDockDemoler) btnDockDemoler.style.display = 'none';
     if (btnAbrirLogin) btnAbrirLogin.style.display = 'inline-block';
     if (btnDesconectar) btnDesconectar.style.display = 'none';
   }
+
+  actualizarBadgeBarrioActual();
 }
 
 /* ============================================================
@@ -1633,6 +2367,13 @@ if (btnCerrarAdmin && modalAdmin) {
 }
 
 // Acciones Administrativas
+document.getElementById('admin-activar-bairros')?.addEventListener('click', () => {
+  if (modalAdmin) modalAdmin.style.display = 'none';
+  seleccionarHerramienta('delimitar_bairro');
+  actualizarDockActivo('dock-btn-bairro');
+  mostrarNotificacion('🏷️ Modo Barrios: Haz clic o toca en dos esquinas para delimitar una región.');
+});
+
 document.getElementById('admin-dar-oikos')?.addEventListener('click', () => {
   jugadorLocal.oikos += 100000;
   actualizarHUD();
@@ -1663,6 +2404,7 @@ document.getElementById('admin-desalojar-todos')?.addEventListener('click', () =
       const c = estado.grade[z][x];
       if (c && c.inquilino) {
         c.inquilino = null;
+        actualizarMeshCelda(x, z);
         liberadas++;
       }
     }
@@ -1743,6 +2485,30 @@ function desenharMiniMapa() {
   ctx.fillStyle = '#1b5e20';
   ctx.fillRect(0, 0, w, h);
 
+  // Dibujar polígonos/rectángulos de Barrios delimitados
+  if (estado.bairros && estado.bairros.length > 0) {
+    estado.bairros.forEach(b => {
+      const minX = Math.min(b.x1, b.x2) * px;
+      const minZ = Math.min(b.z1, b.z2) * px;
+      const bw = (Math.abs(b.x2 - b.x1) + 1) * px;
+      const bh = (Math.abs(b.z2 - b.z1) + 1) * px;
+
+      ctx.fillStyle = b.cor ? `${b.cor}33` : 'rgba(45, 158, 66, 0.2)';
+      ctx.fillRect(minX, minZ, bw, bh);
+
+      ctx.strokeStyle = b.cor || '#2d9e42';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(minX, minZ, bw, bh);
+
+      if (bw > 25 && bh > 12) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 8px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.nome, minX + bw / 2, minZ + bh / 2 + 3);
+      }
+    });
+  }
+
   const colores = {
     estrada: '#37474f',
     casa: '#ffb74d',
@@ -1806,9 +2572,15 @@ if (miniMapaCanvas) {
   miniMapaCanvas.addEventListener('click', navegarMinimapa);
 }
 
+let frameContadorAnim = 0;
 function animar() {
   requestAnimationFrame(animar);
   if (controles) controles.update();
+
+  frameContadorAnim++;
+  if (frameContadorAnim % 12 === 0) {
+    actualizarBadgeBarrioActual();
+  }
 
   if (controles && gridHelper) {
     gridHelper.position.x = Math.floor(controles.target.x / TAMANHO_CELULA) * TAMANHO_CELULA;
@@ -1834,6 +2606,41 @@ function animar() {
    ============================================================ */
 // Se ejecuta de inmediato al cargar el script para que el visitante
 // vea el mapa 3D y la ciudad sin tener que pasar por ninguna pantalla previa.
+
+// Recuperar barrios globales si existen previamente
+try {
+  const guardadoBairros = localStorage.getItem('katuete_global_bairros');
+  if (guardadoBairros) {
+    const parsed = JSON.parse(guardadoBairros);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      estado.bairros = parsed;
+    }
+  }
+} catch (e) {}
+
+// Recuperar sesión previa de localStorage si el usuario ya inició sesión
+try {
+  const sesionGuardada = localStorage.getItem('katuete_session');
+  if (sesionGuardada) {
+    const s = JSON.parse(sesionGuardada);
+    if (s && s.uid) {
+      if (s.esAdmin) {
+        jugadorLocal.uid = s.uid;
+        jugadorLocal.nombre = 'ALCALDE';
+        jugadorLocal.email = s.email;
+        jugadorLocal.esAdmin = true;
+        jugadorLocal.oikos = 9999999;
+      } else {
+        jugadorLocal.uid = s.uid;
+        jugadorLocal.nombre = s.nombre;
+        jugadorLocal.email = s.email;
+        jugadorLocal.esAdmin = false;
+        jugadorLocal.oikos = s.oikos || 1000;
+      }
+    }
+  }
+} catch (e) {}
+
 recuperarCiudadGuardada();
 
 const centroInicial = Math.floor(TAMANHO_GRADE / 2);
@@ -1842,6 +2649,7 @@ if (estado.grade[centroInicial][centroInicial] === null) {
 }
 
 iniciarMotor3D();
+reconstruirVisualBairros3D();
 actualizarChunksCamara(true); // Carga inmediata de los chunks iniciales
 iniciarCicloAlquilerLocal();
 actualizarHUD();

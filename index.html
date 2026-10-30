@@ -27,6 +27,11 @@
         👤 <strong id="stat-jugador-nombre">Visitante</strong>
       </div>
 
+      <!-- Barrio Actual -->
+      <div class="stat-item bairro-badge" id="badge-bairro-contenedor" title="Barrio actual">
+        📍 <strong id="stat-bairro-nombre">Centro de Katuete</strong>
+      </div>
+
       <div class="stat-item oikos-badge">
         🟡 <span class="valor" id="stat-oikos-saldo">1,000</span> <small>Oikos</small>
       </div>
@@ -313,9 +318,14 @@
         <span class="etiqueta-dock">Ciudad</span>
       </button>
 
-      <button class="btn-dock btn-ferramenta" data-ferramenta="demolir" id="dock-btn-demoler" title="Modo Demolición">
+      <button class="btn-dock admin-btn btn-ferramenta" data-ferramenta="demolir" id="dock-btn-demoler" style="display: none;" title="Alcalde: Modo Demolición">
         <span class="icono-dock">💥</span>
         <span class="etiqueta-dock">Demoler</span>
+      </button>
+
+      <button class="btn-dock admin-btn btn-ferramenta" data-ferramenta="delimitar_bairro" id="dock-btn-bairro" style="display: none;" title="Alcalde: Delimitar y Nombrar Barrio">
+        <span class="icono-dock">🏷️</span>
+        <span class="etiqueta-dock">Barrios</span>
       </button>
 
       <button class="btn-dock admin-btn" id="btn-panel-admin" style="display: none;" title="Panel de Alcaldía">
@@ -327,6 +337,50 @@
     <!-- Notificación Global Flotante (Toast) -->
     <div id="notificacao"></div>
 
+    <!-- Modal para Nombrar/Editar Barrio (Exclusivo Alcalde) -->
+    <div id="modal-barrio" class="modal-flotante" style="display: none;">
+      <div class="login-container-mini modal-barrio-box">
+        <div class="cabecera-modal-mini">
+          <h3>🏷️ Delimitar y Nombrar Barrio</h3>
+          <button id="btn-cerrar-modal-barrio" class="btn-cerrar-mini" type="button">✖</button>
+        </div>
+        <form id="form-barrio">
+          <p class="subtitulo-barrio" id="info-coords-barrio">Sector: (0, 0) a (0, 0)</p>
+
+          <div class="campo-grupo">
+            <input type="text" id="campo-nombre-barrio" placeholder="Nombre del Barrio (ej. Centro)" required maxlength="30" />
+          </div>
+
+          <div class="campo-grupo">
+            <select id="campo-tipo-barrio" class="select-barrio">
+              <option value="Residencial">🏡 Zona Residencial</option>
+              <option value="Comercial">🏪 Distrito Comercial</option>
+              <option value="Industrial">🏭 Parque Industrial</option>
+              <option value="Cívico / Verde">🏛️ Centro Cívico / Verde</option>
+              <option value="Distrito Mixto">🏙️ Distrito Mixto</option>
+            </select>
+          </div>
+
+          <div class="campo-grupo selector-colores-barrio">
+            <label class="label-colores">Color del distrito:</label>
+            <div class="paleta-colores-barrio">
+              <button type="button" class="btn-cor-bairro activa" data-cor="#2d9e42" style="background:#2d9e42;"></button>
+              <button type="button" class="btn-cor-bairro" data-cor="#fbc02d" style="background:#fbc02d;"></button>
+              <button type="button" class="btn-cor-bairro" data-cor="#0288d1" style="background:#0288d1;"></button>
+              <button type="button" class="btn-cor-bairro" data-cor="#8e24aa" style="background:#8e24aa;"></button>
+              <button type="button" class="btn-cor-bairro" data-cor="#e53935" style="background:#e53935;"></button>
+              <button type="button" class="btn-cor-bairro" data-cor="#fb8c00" style="background:#fb8c00;"></button>
+            </div>
+          </div>
+
+          <div class="botones-auth-apilados">
+            <button type="submit" class="btn-login-principal" id="btn-guardar-barrio">💾 Guardar Barrio</button>
+            <button type="button" class="btn-secundario-completo" id="btn-eliminar-barrio" style="display:none; color:#ef9a9a; border-color:#ef5350;">🗑️ Eliminar Barrio</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Panel de Administración Modal (Exclusivo Alcalde) -->
     <div id="modal-admin" class="modal-flotante" style="display: none;">
       <div class="modal-admin-contenido">
@@ -334,6 +388,7 @@
         <p>Herramientas exclusivas de administración urbana</p>
         
         <div class="admin-acciones">
+          <button id="admin-activar-bairros" class="btn-admin-accion">🏷️ Delimitar y Nombrar Barrios</button>
           <button id="admin-dar-oikos" class="btn-admin-accion">💰 Inyectar +100.000 Oikos</button>
           <button id="admin-limpiar-ciudad" class="btn-admin-accion peligro">🧹 Demoler Toda la Ciudad</button>
           <button id="admin-desalojar-todos" class="btn-admin-accion">🚪 Liberar Todas las Viviendas</button>
