@@ -47,6 +47,12 @@ const COSTOS_CONSTRUCCION = {
   sobrado: 900,
   predio: 2200,
   loja: 1100,
+  padaria: 1200,
+  mercado: 2500,
+  loja_roupa: 1400,
+  restaurante: 1800,
+  loja_veiculos: 4500,
+  banco: 6000,
   posto: 1800,
   parque: 600,
   usina: 2800,
@@ -62,7 +68,9 @@ const COSTOS_CONSTRUCCION = {
 const DIMENSIONES_OBJETOS = {
   parque: { w: 3, h: 3 },
   usina: { w: 2, h: 2 },
-  municipalidad: { w: 3, h: 3 }
+  municipalidad: { w: 3, h: 3 },
+  loja_veiculos: { w: 2, h: 2 },
+  banco: { w: 2, h: 2 }
 };
 
 function obtenerDimensionesObjeto(tipo) {
@@ -312,6 +320,40 @@ io.on('connection', (socket) => {
         console.log(`💼 ${jugador.nombre} completó su turno de trabajo y cobró ${SALARIO_TURNO_OIKOS} Oikos.`);
       }
     }, 1000);
+  });
+
+  /**
+   * 2.1 TRANSFERENCIAS BANCARIAS ENTRE CIUDADANOS
+   */
+  socket.on('transferencia_bancaria', (datos) => {
+    const remitente = jugadores.get(socket.id);
+    if (!remitente) return;
+    const { destinatario, monto } = datos || {};
+    const valor = Math.floor(Number(monto));
+    if (!destinatario || isNaN(valor) || valor <= 0) return;
+
+    let socketDest = null;
+    let jugDest = null;
+    for (const [sId, jug] of jugadores.entries()) {
+      if (jug.nombre.toLowerCase() === destinatario.trim().toLowerCase()) {
+        socketDest = sId;
+        jugDest = jug;
+        break;
+      }
+    }
+
+    if (socketDest && jugDest) {
+      jugDest.oikos += valor;
+      io.to(socketDest).emit('notificacion', {
+        tipo: 'exito',
+        mensaje: `💸 ¡Has recibido una transferencia de ${valor} Oikos de parte de ${remitente.nombre}!`
+      });
+      io.to(socketDest).emit('actualizar_saldo_jugador', {
+        nombre: jugDest.nombre,
+        oikos: jugDest.oikos
+      });
+      console.log(`💸 Transferencia bancaria: ${remitente.nombre} -> ${jugDest.nombre} (${valor} Oikos)`);
+    }
   });
 
   /**

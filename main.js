@@ -44,10 +44,15 @@ const jugadorLocal = {
   email: '',
   esAdmin: false,
   oikos: 1000,
+  saldoBanco: 0,
+  deudaPrestamo: 0,
   trabajando: false,
   tiempoTurnoRestante: 0,
   duracionTurnoTotal: 10,
-  casasAlquiladas: []
+  casasAlquiladas: [],
+  inventario: [], // [ { id, nombre, icono, desc, cantidad, precioVenta, tipo } ]
+  garagem: [],    // [ { id, nombre, icono, velocidad } ]
+  empleoEspecializado: null // { id, titulo, empresa, salario, duracion }
 };
 
 const TAMANHO_GRADE = 400; // Mapa 10x más grande (1.6 km x 1.6 km)
@@ -68,11 +73,17 @@ const COSTOS_CONSTRUCCION = {
   sobrado: 900,
   predio: 2200,
   loja: 1100,
+  padaria: 1200,
+  mercado: 2000,
+  loja_roupa: 1500,
+  restaurante: 1600,
   posto: 1800,
-  parque: 600,       // Exclusivo Alcalde (3x3)
-  usina: 2800,       // Exclusivo Alcalde (2x2)
-  caixaDAgua: 2000,  // Exclusivo Alcalde
-  municipalidad: 5000 // Exclusivo Alcalde (3x3)
+  loja_veiculos: 3200, // 2x2
+  banco: 4000,         // 2x2
+  parque: 600,         // Exclusivo Alcalde (3x3)
+  usina: 2800,         // Exclusivo Alcalde (2x2)
+  caixaDAgua: 2000,    // Exclusivo Alcalde
+  municipalidad: 5000   // Exclusivo Alcalde (3x3)
 };
 
 // Obras reservadas exclusivamente para el Alcalde (Admin)
@@ -88,12 +99,93 @@ const CONSTRUCCIONES_EXCLUSIVAS_ALCALDE = [
 const DIMENSIONES_OBJETOS = {
   parque: { w: 3, h: 3 },
   usina: { w: 2, h: 2 },
-  municipalidad: { w: 3, h: 3 }
+  municipalidad: { w: 3, h: 3 },
+  loja_veiculos: { w: 2, h: 2 },
+  banco: { w: 2, h: 2 }
 };
 
 function obtenerDimensionesObjeto(tipo) {
   return DIMENSIONES_OBJETOS[tipo] || { w: 1, h: 1 };
 }
+
+/* ============================================================
+   CATÁLOGO DE PRODUCTOS Y EMPLEOS POR COMERCIO
+   ============================================================ */
+const CATALOGO_COMERCIOS = {
+  loja: {
+    titulo: '🏪 Tienda de Abastecimiento General',
+    subtitulo: 'Herramientas, provisiones y artículos esenciales',
+    articulos: [
+      { id: 'herramientas', nombre: 'Caja de Herramientas', icono: '🧰', desc: 'Permite reparar y equipar', precio: 180, precioVenta: 90, tipo: 'herramienta' },
+      { id: 'linterna', nombre: 'Linterna Eléctrica', icono: '🔦', desc: 'Accesorio de exploración', precio: 75, precioVenta: 35, tipo: 'accesorio' },
+      { id: 'mochila_cuero', nombre: 'Mochila de Explorador', icono: '🎒', desc: 'Aumenta tu capacidad', precio: 300, precioVenta: 150, tipo: 'accesorio' }
+    ],
+    empleo: { id: 'dependiente_tienda', titulo: 'Dependiente de Mostrador', empresa: 'Tienda Comercial', salario: 380, duracion: 10 }
+  },
+  padaria: {
+    titulo: '🥖 Panadería Katueté',
+    subtitulo: 'Panes recién horneados, café expreso y repostería',
+    articulos: [
+      { id: 'pan_frances', nombre: 'Cesta de Pan Caliente', icono: '🥖', desc: 'Alimento diario reconstituyente', precio: 25, precioVenta: 12, tipo: 'alimento' },
+      { id: 'chipa_tradicional', nombre: 'Chipá Tradicional', icono: '🥯', desc: 'Especialidad típica paraguaya', precio: 35, precioVenta: 18, tipo: 'alimento' },
+      { id: 'cafe_expreso', nombre: 'Café Expreso Caliente', icono: '☕', desc: 'Energía para turnos de trabajo', precio: 20, precioVenta: 10, tipo: 'alimento' },
+      { id: 'torta_miel', nombre: 'Torta Dulce de Miel', icono: '🍰', desc: 'Postre artesanal delicioso', precio: 65, precioVenta: 30, tipo: 'alimento' }
+    ],
+    empleo: { id: 'panadero', titulo: 'Maestro Panadero y Pastelero', empresa: 'Panadería Katueté', salario: 420, duracion: 12 }
+  },
+  mercado: {
+    titulo: '🛒 Supermercado Municipal Katueté',
+    subtitulo: 'Víveres, canastas familiares y alimentos frescos',
+    articulos: [
+      { id: 'canasta_familiar', nombre: 'Canasta Básica Familiar', icono: '🧺', desc: 'Alimentos completos para el hogar', precio: 120, precioVenta: 60, tipo: 'alimento' },
+      { id: 'leche_fresca', nombre: 'Pack de Leche Entera', icono: '🥛', desc: 'Nutrición matinal para la familia', precio: 40, precioVenta: 20, tipo: 'alimento' },
+      { id: 'carne_selecta', nombre: 'Corte de Carne Vacuna', icono: '🥩', desc: 'Proteína fresca de primera', precio: 95, precioVenta: 45, tipo: 'alimento' },
+      { id: 'aceite_cocina', nombre: 'Botella de Aceite Puro', icono: '🫒', desc: 'Insumo culinario esencial', precio: 50, precioVenta: 25, tipo: 'alimento' }
+    ],
+    empleo: { id: 'cajero_mercado', titulo: 'Cajero y Repositor de Mercadería', empresa: 'Supermercado Municipal', salario: 450, duracion: 11 }
+  },
+  loja_roupa: {
+    titulo: '👕 Boutique & Tienda de Modas',
+    subtitulo: 'Indumentaria urbana, atuendos formales y accesorios',
+    articulos: [
+      { id: 'traje_formal', nombre: 'Traje de Gala Ejecutivo', icono: '👔', desc: 'Viste con distinción cívica', precio: 380, precioVenta: 190, tipo: 'prenda' },
+      { id: 'sombrero_piri', nombre: 'Sombrero Pirí Tradicional', icono: '👒', desc: 'Protección con estilo regional', precio: 90, precioVenta: 45, tipo: 'prenda' },
+      { id: 'camisa_campestre', nombre: 'Camisa Campestre de Lino', icono: '👕', desc: 'Comodidad para el día a día', precio: 140, precioVenta: 70, tipo: 'prenda' },
+      { id: 'botas_cuero', nombre: 'Botas de Cuero Curtido', icono: '👢', desc: 'Calzado resistente para la ciudad', precio: 220, precioVenta: 110, tipo: 'prenda' }
+    ],
+    empleo: { id: 'asesor_moda', titulo: 'Asesor de Imagen y Ventas', empresa: 'Boutique de Modas', salario: 460, duracion: 14 }
+  },
+  restaurante: {
+    titulo: '🍽️ Restaurante Tradicional Katueté',
+    subtitulo: 'Gastronomía regional, asados criollos y banquetes',
+    articulos: [
+      { id: 'asado_mandioca', nombre: 'Asado con Mandioca', icono: '🍖', desc: 'Plato festivo por excelencia', precio: 110, precioVenta: 50, tipo: 'alimento' },
+      { id: 'sopa_paraguaya', nombre: 'Sopa Paraguaya Auténtica', icono: '🥧', desc: 'Torta salada de queso y maíz', precio: 55, precioVenta: 25, tipo: 'alimento' },
+      { id: 'empanadas_carne', nombre: 'Docena de Empanadas', icono: '🥟', desc: 'Almuerzo rápido y sabroso', precio: 60, precioVenta: 30, tipo: 'alimento' }
+    ],
+    empleo: { id: 'chef_cocina', titulo: 'Jefe de Cocina y Parrillero', empresa: 'Restaurante Tradicional', salario: 480, duracion: 13 }
+  },
+  posto: {
+    titulo: '⛽ Estación de Servicios y Combustibles',
+    subtitulo: 'Abastecimiento de vehículos, lubricantes y accesorios viales',
+    articulos: [
+      { id: 'bidon_nafta', nombre: 'Bidón de Nafta Súper', icono: '⛽', desc: 'Combustible de alta pureza', precio: 150, precioVenta: 75, tipo: 'suministro' },
+      { id: 'aceite_motor', nombre: 'Lubricante Sintético', icono: '🛢️', desc: 'Mantenimiento preventivo', precio: 110, precioVenta: 55, tipo: 'suministro' }
+    ],
+    empleo: { id: 'operario_pista', titulo: 'Operario de Pista y Mantenimiento', empresa: 'Estación de Servicios', salario: 410, duracion: 10 }
+  },
+  loja_veiculos: {
+    titulo: '🚗 Concesionaria Central de Vehículos',
+    subtitulo: 'Adquisición de vehículos particulares y comerciales',
+    articulos: [
+      { id: 'bicicleta_urbana', nombre: 'Bicicleta Urbana Liviana', icono: '🚲', desc: 'Transporte ecológico y veloz', precio: 160, precioVenta: 80, tipo: 'vehiculo', velocidad: 1.15 },
+      { id: 'moto_150cc', nombre: 'Motocicleta 150cc Street', icono: '🏍️', desc: 'Gran agilidad en el tráfico urbano', precio: 950, precioVenta: 480, tipo: 'vehiculo', velocidad: 1.35 },
+      { id: 'auto_popular', nombre: 'Automóvil Sedán Familiar', icono: '🚗', desc: 'Confort y velocidad para la ciudad', precio: 2600, precioVenta: 1300, tipo: 'vehiculo', velocidad: 1.45 },
+      { id: 'camioneta_4x4', nombre: 'Camioneta Pickup 4x4', icono: '🚙', desc: 'Fuerza todoterreno para todo Katueté', precio: 4800, precioVenta: 2400, tipo: 'vehiculo', velocidad: 1.55 }
+    ],
+    empleo: { id: 'mecanico_concesionaria', titulo: 'Técnico Mecánico y Vendedor Automotriz', empresa: 'Concesionaria Central', salario: 650, duracion: 18 }
+  }
+};
 
 const estado = {
   ferramentaAtiva: 'ponteiro',
@@ -764,6 +856,303 @@ function criarLoja(rot) {
   return grupo;
 }
 
+function criarPadaria(rot) {
+  const grupo = new THREE.Group();
+  const paredes = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.5, 3.4), new THREE.MeshLambertMaterial({ color: 0xfff3e0 }));
+  paredes.position.y = 1.25;
+  paredes.castShadow = true;
+  grupo.add(paredes);
+
+  const toldo = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.28, 1.3), new THREE.MeshLambertMaterial({ color: 0xd84315 }));
+  toldo.position.set(0, 2.0, 1.85);
+  toldo.rotation.x = 0.15;
+  toldo.castShadow = true;
+  grupo.add(toldo);
+
+  const vidrio = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 0.1), new THREE.MeshLambertMaterial({ color: 0x81d4fa, transparent: true, opacity: 0.8 }));
+  vidrio.position.set(-0.7, 1.2, 1.72);
+  grupo.add(vidrio);
+
+  [-0.9, -0.6, -0.3].forEach(px => {
+    const baguette = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.45, 6), new THREE.MeshLambertMaterial({ color: 0xc68a4c }));
+    baguette.position.set(px, 1.0, 1.6);
+    baguette.rotation.z = Math.PI / 4;
+    grupo.add(baguette);
+  });
+
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.7, 0.08), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+  puerta.position.set(0.9, 0.85, 1.72);
+  grupo.add(puerta);
+
+  const chimenea = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.8, 0.45), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
+  chimenea.position.set(-1.0, 2.8, -0.8);
+  grupo.add(chimenea);
+
+  const letrero = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.08), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
+  letrero.position.set(0, 2.35, 1.73);
+  grupo.add(letrero);
+
+  grupo.rotation.y = rot;
+  return grupo;
+}
+
+function criarMercado(rot) {
+  const grupo = new THREE.Group();
+  const nave = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.8, 3.6), new THREE.MeshLambertMaterial({ color: 0xf1f8e9 }));
+  nave.position.y = 1.4;
+  nave.castShadow = true;
+  grupo.add(nave);
+
+  const marquesina = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.4, 1.2), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+  marquesina.position.set(0, 2.3, 1.85);
+  marquesina.castShadow = true;
+  grupo.add(marquesina);
+
+  const cartelRooftop = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, 0.2), new THREE.MeshLambertMaterial({ color: 0x1b5e20 }));
+  cartelRooftop.position.set(0, 3.2, 0.5);
+  grupo.add(cartelRooftop);
+
+  const logoCartel = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.5, 0.22), new THREE.MeshLambertMaterial({ color: 0xffeb3b }));
+  logoCartel.position.set(0, 3.2, 0.52);
+  grupo.add(logoCartel);
+
+  const puertas = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.8, 0.1), new THREE.MeshLambertMaterial({ color: 0x80deea, transparent: true, opacity: 0.85 }));
+  puertas.position.set(0, 0.9, 1.82);
+  grupo.add(puertas);
+
+  const techoCarritos = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 0.8), new THREE.MeshLambertMaterial({ color: 0x78909c }));
+  techoCarritos.position.set(-1.25, 1.1, 1.9);
+  grupo.add(techoCarritos);
+  [-1.4, -1.1].forEach(cx => {
+    const carrito = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.4, 0.35), new THREE.MeshLambertMaterial({ color: 0xb0bec5 }));
+    carrito.position.set(cx, 0.25, 1.9);
+    grupo.add(carrito);
+  });
+
+  grupo.rotation.y = rot;
+  return grupo;
+}
+
+function criarLojaRoupa(rot) {
+  const grupo = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.6, 3.4), new THREE.MeshLambertMaterial({ color: 0x4a148c }));
+  base.position.y = 1.3;
+  base.castShadow = true;
+  grupo.add(base);
+
+  const marco = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.65, 0.3), new THREE.MeshLambertMaterial({ color: 0xad1457 }));
+  marco.position.set(0, 1.32, 1.6);
+  grupo.add(marco);
+
+  const toldo = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.25, 1.1), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+  toldo.position.set(0, 2.15, 1.85);
+  toldo.rotation.x = 0.2;
+  grupo.add(toldo);
+
+  [-0.9, 0.9].forEach((vx, idx) => {
+    const vitrina = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.5, 0.1), new THREE.MeshLambertMaterial({ color: 0xe1bee7, transparent: true, opacity: 0.8 }));
+    vitrina.position.set(vx, 1.1, 1.77);
+    grupo.add(vitrina);
+
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.65, 8), new THREE.MeshLambertMaterial({ color: idx === 0 ? 0xff4081 : 0x00e5ff }));
+    torso.position.set(vx, 1.1, 1.65);
+    grupo.add(torso);
+
+    const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshLambertMaterial({ color: 0xffecb3 }));
+    cabeza.position.set(vx, 1.5, 1.65);
+    grupo.add(cabeza);
+  });
+
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.8, 0.08), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+  puerta.position.set(0, 0.9, 1.77);
+  grupo.add(puerta);
+
+  grupo.rotation.y = rot;
+  return grupo;
+}
+
+function criarRestaurante(rot) {
+  const grupo = new THREE.Group();
+  const salon = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.5, 2.8), new THREE.MeshLambertMaterial({ color: 0xbf360c }));
+  salon.position.set(0, 1.25, -0.3);
+  salon.castShadow = true;
+  grupo.add(salon);
+
+  const moldura = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.22, 2.9), new THREE.MeshLambertMaterial({ color: 0x3e2723 }));
+  moldura.position.set(0, 2.55, -0.3);
+  grupo.add(moldura);
+
+  const toldoPatio = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.2, 1.2), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
+  toldoPatio.position.set(0, 2.1, 1.1);
+  toldoPatio.rotation.x = 0.15;
+  grupo.add(toldoPatio);
+
+  const terraza = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 1.3), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
+  terraza.position.set(0, 0.06, 1.25);
+  grupo.add(terraza);
+
+  const mesa = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.45, 12), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+  mesa.position.set(-0.8, 0.3, 1.25);
+  grupo.add(mesa);
+
+  const paloSombrilla = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.3, 6), new THREE.MeshLambertMaterial({ color: 0x424242 }));
+  paloSombrilla.position.set(-0.8, 0.9, 1.25);
+  grupo.add(paloSombrilla);
+
+  const conoSombrilla = new THREE.Mesh(new THREE.ConeGeometry(0.7, 0.35, 8), new THREE.MeshLambertMaterial({ color: 0xc62828 }));
+  conoSombrilla.position.set(-0.8, 1.55, 1.25);
+  grupo.add(conoSombrilla);
+
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.7, 0.08), new THREE.MeshLambertMaterial({ color: 0x3e2723 }));
+  puerta.position.set(0.7, 0.85, 1.12);
+  grupo.add(puerta);
+
+  const ventanal = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 0.08), new THREE.MeshLambertMaterial({ color: 0xffecb3, transparent: true, opacity: 0.8 }));
+  ventanal.position.set(-0.5, 1.2, 1.12);
+  grupo.add(ventanal);
+
+  grupo.rotation.y = rot;
+  return grupo;
+}
+
+function criarLojaVeiculos(rot) {
+  const grupo = new THREE.Group();
+  const tamanho = TAMANHO_CELULA * 2; // 8.0m (Huella 2x2 celdas)
+
+  const podio = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.3, 0.25, tamanho - 0.3), new THREE.MeshLambertMaterial({ color: 0x37474f }));
+  podio.position.y = 0.125;
+  podio.receiveShadow = true;
+  grupo.add(podio);
+
+  const techo = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.2, 0.4, tamanho - 0.2), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+  techo.position.y = 3.6;
+  techo.castShadow = true;
+  grupo.add(techo);
+
+  const neon = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.1, 0.08, tamanho - 0.1), new THREE.MeshBasicMaterial({ color: 0x00e5ff }));
+  neon.position.y = 3.42;
+  grupo.add(neon);
+
+  const matCol = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  [[-3.6, -3.6], [3.6, -3.6], [-3.6, 3.6], [3.6, 3.6]].forEach(([cx, cz]) => {
+    const col = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3.2, 0.4), matCol);
+    col.position.set(cx, 1.85, cz);
+    col.castShadow = true;
+    grupo.add(col);
+  });
+
+  const matVidrio = new THREE.MeshLambertMaterial({ color: 0x80deea, transparent: true, opacity: 0.65 });
+  const paredFondo = new THREE.Mesh(new THREE.BoxGeometry(7.2, 3.2, 0.3), new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+  paredFondo.position.set(0, 1.85, -3.6);
+  grupo.add(paredFondo);
+
+  const vidrioIzq = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.2, 7.2), matVidrio);
+  vidrioIzq.position.set(-3.6, 1.85, 0);
+  grupo.add(vidrioIzq);
+
+  const vidrioDer = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.2, 7.2), matVidrio);
+  vidrioDer.position.set(3.6, 1.85, 0);
+  grupo.add(vidrioDer);
+
+  const tarima = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.2, 0.25, 24), new THREE.MeshLambertMaterial({ color: 0xe0e0e0 }));
+  tarima.position.set(0, 0.35, 0);
+  grupo.add(tarima);
+
+  const matAuto = new THREE.MeshLambertMaterial({ color: 0xd50000 });
+  const chasis = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 2.8), matAuto);
+  chasis.position.set(0, 0.7, 0);
+  chasis.castShadow = true;
+  grupo.add(chasis);
+
+  const cabina = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.4, 1.4), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+  cabina.position.set(0, 1.05, -0.2);
+  grupo.add(cabina);
+
+  const parabrisas = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.3, 0.5), new THREE.MeshLambertMaterial({ color: 0x80deea }));
+  parabrisas.position.set(0, 1.0, 0.55);
+  parabrisas.rotation.x = -0.3;
+  grupo.add(parabrisas);
+
+  const matRueda = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  [[-0.85, 0.55, 0.8], [0.85, 0.55, 0.8], [-0.85, 0.55, -0.8], [0.85, 0.55, -0.8]].forEach(([rx, ry, rz]) => {
+    const rueda = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.18, 12), matRueda);
+    rueda.position.set(rx, ry, rz);
+    rueda.rotation.z = Math.PI / 2;
+    grupo.add(rueda);
+  });
+
+  const mostrador = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, 0.6), new THREE.MeshLambertMaterial({ color: 0xeeeeee }));
+  mostrador.position.set(2.2, 0.6, 2.2);
+  grupo.add(mostrador);
+
+  grupo.rotation.y = rot;
+  return grupo;
+}
+
+function criarBanco(rot) {
+  const grupo = new THREE.Group();
+  const tamanho = TAMANHO_CELULA * 2; // 8.0m (Huella 2x2 celdas)
+
+  const matPodio = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+  const podio = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.4, 0.55, tamanho - 0.4), matPodio);
+  podio.position.y = 0.275;
+  podio.receiveShadow = true;
+  grupo.add(podio);
+
+  const matEscaleras = new THREE.MeshLambertMaterial({ color: 0xe0e0e0 });
+  [0.35, 0.22, 0.1].forEach((h, idx) => {
+    const escalon = new THREE.Mesh(new THREE.BoxGeometry(4.6 + idx * 0.3, 0.12, 0.8 + idx * 0.25), matEscaleras);
+    escalon.position.set(0, 0.06 + idx * 0.12, 3.4 - idx * 0.25);
+    escalon.receiveShadow = true;
+    grupo.add(escalon);
+  });
+
+  const matParedes = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
+  const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(6.6, 4.4, 5.0), matParedes);
+  cuerpo.position.set(0, 2.2 + 0.55, -0.6);
+  cuerpo.castShadow = true;
+  grupo.add(cuerpo);
+
+  const matCol = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  [-2.4, -0.8, 0.8, 2.4].forEach(cx => {
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 4.2, 12), matCol);
+    col.position.set(cx, 2.1 + 0.55, 2.2);
+    col.castShadow = true;
+    grupo.add(col);
+
+    const capitel = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.22, 0.65), matPodio);
+    capitel.position.set(cx, 4.2 + 0.55, 2.2);
+    grupo.add(capitel);
+  });
+
+  const entablamento = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.45, 5.8), matPodio);
+  entablamento.position.set(0, 4.5 + 0.55, 0.2);
+  grupo.add(entablamento);
+
+  const fronton = new THREE.Mesh(new THREE.ConeGeometry(2.2, 1.2, 4), matPodio);
+  fronton.position.set(0, 5.3 + 0.55, 2.2);
+  fronton.rotation.y = Math.PI / 4;
+  fronton.scale.set(1.6, 1.0, 0.4);
+  grupo.add(fronton);
+
+  const escudo = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 16), new THREE.MeshLambertMaterial({ color: 0xffd700 }));
+  escudo.position.set(0, 5.2 + 0.55, 2.38);
+  escudo.rotation.x = Math.PI / 2;
+  grupo.add(escudo);
+
+  const matBoveda = new THREE.MeshLambertMaterial({ color: 0xd4af37 });
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.6, 0.15), matBoveda);
+  puerta.position.set(0, 1.3 + 0.55, 1.92);
+  grupo.add(puerta);
+
+  const timon = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 8, 16), new THREE.MeshLambertMaterial({ color: 0x424242 }));
+  timon.position.set(0, 1.3 + 0.55, 2.02);
+  grupo.add(timon);
+
+  grupo.rotation.y = rot;
+  return grupo;
+}
+
 function criarPosto(rot) {
   const grupo = new THREE.Group();
   const piso = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.1, 3.8), new THREE.MeshLambertMaterial({ color: 0x78909c }));
@@ -1383,6 +1772,42 @@ function criarEtiquetaEdificio(tipo, inquilino) {
         colorBorde = '#ffd54f';
         alturaY = 5.2;
         break;
+      case 'padaria':
+        textoPrincipal = '🥖 Panadería';
+        colorFondo = 'rgba(216, 67, 21, 0.92)';
+        colorBorde = '#ffab91';
+        alturaY = 5.2;
+        break;
+      case 'mercado':
+        textoPrincipal = '🛒 Supermercado';
+        colorFondo = 'rgba(46, 125, 50, 0.92)';
+        colorBorde = '#a5d6a7';
+        alturaY = 5.8;
+        break;
+      case 'loja_roupa':
+        textoPrincipal = '👗 Tienda de Ropa';
+        colorFondo = 'rgba(106, 27, 154, 0.92)';
+        colorBorde = '#ce93d8';
+        alturaY = 5.2;
+        break;
+      case 'restaurante':
+        textoPrincipal = '🍽️ Restaurante';
+        colorFondo = 'rgba(191, 54, 12, 0.92)';
+        colorBorde = '#ffcc80';
+        alturaY = 5.4;
+        break;
+      case 'loja_veiculos':
+        textoPrincipal = '🚗 Concesionaria';
+        colorFondo = 'rgba(38, 50, 56, 0.94)';
+        colorBorde = '#00e5ff';
+        alturaY = 6.8;
+        break;
+      case 'banco':
+        textoPrincipal = '🏦 Banco Central';
+        colorFondo = 'rgba(13, 71, 161, 0.94)';
+        colorBorde = '#ffd700';
+        alturaY = 8.5;
+        break;
       case 'posto':
         textoPrincipal = '⛽ Gasolinera';
         colorFondo = 'rgba(198, 40, 40, 0.9)';
@@ -1467,6 +1892,12 @@ function criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino = null, autor = 'Muni
     case 'sobrado': mesh = criarSobrado(rotRad); break;
     case 'predio': mesh = criarPredio(rotRad); break;
     case 'loja': mesh = criarLoja(rotRad); break;
+    case 'padaria': mesh = criarPadaria(rotRad); break;
+    case 'mercado': mesh = criarMercado(rotRad); break;
+    case 'loja_roupa': mesh = criarLojaRoupa(rotRad); break;
+    case 'restaurante': mesh = criarRestaurante(rotRad); break;
+    case 'loja_veiculos': mesh = criarLojaVeiculos(rotRad); break;
+    case 'banco': mesh = criarBanco(rotRad); break;
     case 'posto': mesh = criarPosto(rotRad); break;
     case 'parque': mesh = criarParque(); break;
     case 'usina': mesh = criarUsina(rotRad); break;
@@ -1752,36 +2183,37 @@ let colorBarrioSeleccionado = '#2d9e42';
 
 function criarSpriteTextoBarrio(texto, tipo, cor) {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 160;
+  canvas.width = 256;
+  canvas.height = 76;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = 'rgba(10, 25, 15, 0.9)';
+  ctx.fillStyle = 'rgba(10, 25, 15, 0.92)';
   if (ctx.roundRect) {
-    ctx.roundRect(10, 10, 492, 140, 24);
+    ctx.roundRect(6, 6, 244, 64, 16);
   } else {
-    ctx.rect(10, 10, 492, 140);
+    ctx.rect(6, 6, 244, 64);
   }
   ctx.fill();
 
   ctx.strokeStyle = cor || '#2d9e42';
-  ctx.lineWidth = 8;
+  ctx.lineWidth = 5;
   ctx.stroke();
 
-  ctx.font = 'bold 44px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
-  ctx.fillText(`📍 ${texto}`, 256, 75);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`📍 ${texto}`, 128, 28);
 
-  ctx.font = '600 24px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = cor || '#81d4fa';
-  ctx.fillText(tipo.toUpperCase(), 256, 118);
+  ctx.fillText(tipo.toUpperCase(), 128, 52);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
   const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.95 });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(36, 11, 1);
+  sprite.scale.set(6.2, 1.85, 1); // Misma escala compacta que las etiquetas de edificios
   return sprite;
 }
 
@@ -1825,9 +2257,9 @@ function reconstruirVisualBairros3D() {
     const borda = new THREE.Line(geoLinha, matLinha);
     grupoBairros3D.add(borda);
 
-    // 2. Cartel flotante 3D sobre el barrio
+    // 2. Cartel flotante 3D sobre el barrio (pequeño y discreto a altura estándar)
     const cartel = criarSpriteTextoBarrio(b.nome, b.tipo || 'Distrito', b.cor);
-    cartel.position.set(centroX, 16, centroZ);
+    cartel.position.set(centroX, 5.5, centroZ);
     grupoBairros3D.add(cartel);
   });
 
@@ -2802,6 +3234,11 @@ function guardarCiudadEnStorage(notificar = true) {
   const guardado = {
     nombre: jugadorLocal.nombre,
     oikos: jugadorLocal.oikos,
+    saldoBanco: jugadorLocal.saldoBanco || 0,
+    deudaPrestamo: jugadorLocal.deudaPrestamo || 0,
+    inventario: jugadorLocal.inventario || [],
+    garagem: jugadorLocal.garagem || [],
+    empleoEspecializado: jugadorLocal.empleoEspecializado || null,
     casasAlquiladas: jugadorLocal.casasAlquiladas,
     bairros: estado.bairros || [],
     mapa: []
@@ -2835,6 +3272,11 @@ function recuperarCiudadGuardada() {
   try {
     const parse = JSON.parse(data);
     jugadorLocal.oikos = parse.oikos ?? 1000;
+    jugadorLocal.saldoBanco = parse.saldoBanco || 0;
+    jugadorLocal.deudaPrestamo = parse.deudaPrestamo || 0;
+    jugadorLocal.inventario = Array.isArray(parse.inventario) ? parse.inventario : [];
+    jugadorLocal.garagem = Array.isArray(parse.garagem) ? parse.garagem : [];
+    jugadorLocal.empleoEspecializado = parse.empleoEspecializado || null;
     jugadorLocal.casasAlquiladas = parse.casasAlquiladas || [];
 
     if (parse.bairros && Array.isArray(parse.bairros) && parse.bairros.length > 0) {
@@ -2954,6 +3396,8 @@ function mostrarDetallesCelula(gx, gz) {
   const btnDesalojar = document.getElementById('btn-desalojar-casa');
   const btnUpgrade = document.getElementById('btn-upgrade-calle');
   const btnMover = document.getElementById('btn-mover-edificio');
+  const btnComercio = document.getElementById('btn-entrar-comercio');
+  const btnBanco = document.getElementById('btn-entrar-banco');
 
   if (!card) return;
 
@@ -2962,6 +3406,8 @@ function mostrarDetallesCelula(gx, gz) {
   btnDesalojar.style.display = 'none';
   if (btnUpgrade) btnUpgrade.style.display = 'none';
   if (btnMover) btnMover.style.display = 'none';
+  if (btnComercio) btnComercio.style.display = 'none';
+  if (btnBanco) btnBanco.style.display = 'none';
 
   const barrio = obtenerBarrioEn(gx, gz);
   const infoBarrio = barrio 
@@ -3001,7 +3447,13 @@ function mostrarDetallesCelula(gx, gz) {
   if (celda.tipo === 'casa') nombreTipo = '🏠 Casa Familiar';
   else if (celda.tipo === 'sobrado') nombreTipo = '🏡 Sobrado Duplex';
   else if (celda.tipo === 'predio') nombreTipo = '🏢 Edificio Departamental';
-  else if (celda.tipo === 'loja') nombreTipo = '🏪 Tienda Comercial';
+  else if (celda.tipo === 'loja') nombreTipo = '🏪 Tienda General';
+  else if (celda.tipo === 'padaria') nombreTipo = '🥖 Panadería Artesanal';
+  else if (celda.tipo === 'mercado') nombreTipo = '🛒 Supermercado Municipal';
+  else if (celda.tipo === 'loja_roupa') nombreTipo = '👗 Boutique de Modas';
+  else if (celda.tipo === 'restaurante') nombreTipo = '🍽️ Restaurante Gourmet';
+  else if (celda.tipo === 'loja_veiculos') nombreTipo = '🚗 Concesionaria Katueté (2x2)';
+  else if (celda.tipo === 'banco') nombreTipo = '🏦 Banco Central de Katueté (2x2)';
   else if (celda.tipo === 'posto') nombreTipo = '⛽ Estación de Servicios';
   else if (celda.tipo === 'parque') nombreTipo = '🌳 Parque Ecológico (3x3)';
   else if (celda.tipo === 'usina') nombreTipo = '⚡ Usina Eléctrica (2x2)';
@@ -3060,6 +3512,24 @@ function mostrarDetallesCelula(gx, gz) {
         btnUpgrade.style.display = 'block';
         btnUpgrade.onclick = () => mejorarCalleLocal(gx, gz, 'estrada', 150);
       }
+    }
+  }
+
+  // Acciones de Comercio y Tiendas
+  if (['loja', 'padaria', 'mercado', 'loja_roupa', 'restaurante', 'posto', 'loja_veiculos'].includes(celda.tipo)) {
+    zonaAcciones.style.display = 'block';
+    if (btnComercio) {
+      btnComercio.style.display = 'block';
+      btnComercio.onclick = () => abrirModalComercio(celda.tipo);
+    }
+  }
+
+  // Acciones de Banco Central
+  if (celda.tipo === 'banco') {
+    zonaAcciones.style.display = 'block';
+    if (btnBanco) {
+      btnBanco.style.display = 'block';
+      btnBanco.onclick = () => abrirModalBanco();
     }
   }
 
@@ -3511,6 +3981,577 @@ function animar() {
 }
 
 /* ============================================================
+   13. SISTEMA DE COMERCIO, TRABAJOS ESPECIALIZADOS Y BANCO
+   ============================================================ */
+let comercioActualTipo = null;
+
+function abrirModalComercio(tipoComercio) {
+  if (!jugadorLocal.uid) {
+    mostrarNotificacion('🔒 Debes iniciar sesión para comerciar.');
+    setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+    return;
+  }
+  const modal = document.getElementById('modal-comercio');
+  if (!modal) return;
+  comercioActualTipo = tipoComercio;
+
+  const infoComercio = CATALOGO_COMERCIOS[tipoComercio] || {
+    nombre: 'Comercio Local',
+    icono: '🏪',
+    articulos: [],
+    empleo: null
+  };
+
+  const titulo = document.getElementById('titulo-modal-comercio');
+  if (titulo) {
+    titulo.textContent = `${infoComercio.icono} ${infoComercio.nombre}`;
+  }
+
+  cambiarTabComercio('comprar');
+  renderizarArticulosComercio(tipoComercio);
+  renderizarArticulosVenta();
+  actualizarInfoEmpleoComercio(tipoComercio);
+
+  modal.style.display = 'flex';
+  if (controles) controles.enabled = false;
+}
+
+function cerrarModalComercio() {
+  const modal = document.getElementById('modal-comercio');
+  if (modal) modal.style.display = 'none';
+  comercioActualTipo = null;
+  if (controles) controles.enabled = true;
+}
+
+function cambiarTabComercio(nombreTab) {
+  document.querySelectorAll('.tab-comercio').forEach(t => {
+    t.classList.toggle('activa', t.dataset.tab === nombreTab);
+  });
+  const secComprar = document.getElementById('seccion-comercio-comprar');
+  const secVender = document.getElementById('seccion-comercio-vender');
+  const secEmpleo = document.getElementById('seccion-comercio-empleo');
+
+  if (secComprar) secComprar.style.display = (nombreTab === 'comprar') ? 'block' : 'none';
+  if (secVender) secVender.style.display = (nombreTab === 'vender') ? 'block' : 'none';
+  if (secEmpleo) secEmpleo.style.display = (nombreTab === 'empleo') ? 'block' : 'none';
+}
+
+function renderizarArticulosComercio(tipoComercio) {
+  const cont = document.getElementById('grid-articulos-comercio');
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  const datos = CATALOGO_COMERCIOS[tipoComercio];
+  if (!datos || !datos.articulos || datos.articulos.length === 0) {
+    cont.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; grid-column:1/-1;">No hay artículos disponibles en este momento.</p>';
+    return;
+  }
+
+  datos.articulos.forEach(art => {
+    const card = document.createElement('div');
+    card.className = 'articulo-comercio-card';
+    card.innerHTML = `
+      <div class="icono-art">${art.icono}</div>
+      <div class="nombre-art">${art.nombre}</div>
+      <div class="precio-art">${art.precio.toLocaleString('es-PY')} Ø</div>
+      <div class="desc-art">${art.desc}</div>
+      <button class="btn-comprar-art" data-id="${art.id}">Comprar</button>
+    `;
+    card.querySelector('.btn-comprar-art').addEventListener('click', () => {
+      comprarArticuloComercio(art.id, tipoComercio);
+    });
+    cont.appendChild(card);
+  });
+}
+
+function comprarArticuloComercio(idItem, tipoComercio) {
+  const datos = CATALOGO_COMERCIOS[tipoComercio];
+  if (!datos) return;
+  const art = datos.articulos.find(a => a.id === idItem);
+  if (!art) return;
+
+  if (jugadorLocal.oikos < art.precio) {
+    tocarSonido('error');
+    mostrarNotificacion(`❌ Saldo insuficiente (${art.precio.toLocaleString('es-PY')} Oikos requeridos).`);
+    return;
+  }
+
+  jugadorLocal.oikos -= art.precio;
+  if (!jugadorLocal.inventario) jugadorLocal.inventario = [];
+  if (!jugadorLocal.garagem) jugadorLocal.garagem = [];
+
+  if (art.tipo === 'vehiculo') {
+    jugadorLocal.garagem.push({
+      id: `${art.id}_${Date.now()}`,
+      tipoId: art.id,
+      nombre: art.nombre,
+      icono: art.icono,
+      velocidad: art.velocidad || 1.0,
+      fecha: new Date().toLocaleDateString('es-PY')
+    });
+    mostrarNotificacion(`🚗 ¡Has comprado ${art.nombre}! Guardado en tu Garaje.`);
+  } else {
+    const existente = jugadorLocal.inventario.find(i => i.tipoId === art.id);
+    if (existente) {
+      existente.cantidad = (existente.cantidad || 1) + 1;
+    } else {
+      jugadorLocal.inventario.push({
+        id: `${art.id}_${Date.now()}`,
+        tipoId: art.id,
+        nombre: art.nombre,
+        icono: art.icono,
+        precioBase: art.precio,
+        desc: art.desc,
+        cantidad: 1
+      });
+    }
+    mostrarNotificacion(`🛍️ Compraste ${art.nombre} por ${art.precio} Ø.`);
+  }
+
+  tocarSonido('monedas');
+  actualizarHUD();
+  guardarCiudadEnStorage(false);
+  renderizarArticulosVenta();
+}
+
+function renderizarArticulosVenta() {
+  const cont = document.getElementById('lista-articulos-venta');
+  if (!cont) return;
+  cont.innerHTML = '';
+
+  if (!jugadorLocal.inventario || jugadorLocal.inventario.length === 0) {
+    cont.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center;">Tu mochila está vacía. No tienes objetos para vender.</p>';
+    return;
+  }
+
+  jugadorLocal.inventario.forEach(item => {
+    const precioVenta = Math.round((item.precioBase || 30) * 0.7);
+    const row = document.createElement('div');
+    row.className = 'item-venta-fila';
+    row.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:24px;">${item.icono || '📦'}</span>
+        <div>
+          <strong>${item.nombre}</strong> <span style="color:var(--cor-texto-dim); font-size:12px;">(x${item.cantidad || 1})</span><br/>
+          <small style="color:#81c784;">Valor de reventa: ${precioVenta.toLocaleString('es-PY')} Ø c/u</small>
+        </div>
+      </div>
+      <button class="btn-vender-art" data-id="${item.id}">Vender 1x</button>
+    `;
+    row.querySelector('.btn-vender-art').addEventListener('click', () => {
+      venderArticuloInventario(item.id);
+    });
+    cont.appendChild(row);
+  });
+}
+
+function venderArticuloInventario(idItem) {
+  if (!jugadorLocal.inventario) return;
+  const idx = jugadorLocal.inventario.findIndex(i => i.id === idItem);
+  if (idx === -1) return;
+
+  const item = jugadorLocal.inventario[idx];
+  const precioVenta = Math.round((item.precioBase || 30) * 0.7);
+
+  jugadorLocal.oikos += precioVenta;
+  if ((item.cantidad || 1) > 1) {
+    item.cantidad--;
+  } else {
+    jugadorLocal.inventario.splice(idx, 1);
+  }
+
+  tocarSonido('monedas');
+  actualizarHUD();
+  guardarCiudadEnStorage(false);
+  renderizarArticulosVenta();
+  mostrarNotificacion(`💰 Vendiste 1x ${item.nombre} por +${precioVenta} Oikos.`);
+}
+
+function actualizarInfoEmpleoComercio(tipoComercio) {
+  const datos = CATALOGO_COMERCIOS[tipoComercio];
+  const sec = document.getElementById('seccion-comercio-empleo');
+  if (!datos || !datos.empleo) {
+    if (sec) sec.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center;">Este establecimiento no tiene vacantes laborales disponibles.</p>';
+    return;
+  }
+
+  const emp = datos.empleo;
+  const titulo = document.getElementById('titulo-puesto-empleo');
+  const desc = document.getElementById('desc-puesto-empleo');
+  const salario = document.getElementById('salario-puesto-empleo');
+  const tiempo = document.getElementById('tiempo-puesto-empleo');
+  const btnPostular = document.getElementById('btn-postular-trabajo');
+
+  if (titulo) titulo.textContent = `${emp.puesto}`;
+  if (desc) desc.textContent = emp.desc;
+  if (salario) salario.textContent = `${emp.salario} Ø / turno`;
+  if (tiempo) tiempo.textContent = `${emp.duracion}s`;
+
+  if (btnPostular) {
+    const esPuestoActual = jugadorLocal.empleoEspecializado && jugadorLocal.empleoEspecializado.id === emp.id;
+    btnPostular.textContent = esPuestoActual ? '💼 Empleo Activo - Cumplir Turno' : '📝 Postularme a este Empleo';
+    btnPostular.onclick = () => {
+      postularEmpleoEspecializado(emp);
+    };
+  }
+}
+
+function postularEmpleoEspecializado(emp) {
+  jugadorLocal.empleoEspecializado = emp;
+  guardarCiudadEnStorage(false);
+  tocarSonido('monedas');
+  mostrarNotificacion(`💼 ¡Felicidades! Has sido contratado como ${emp.puesto}.`);
+  iniciarTurnoEspecializado(emp);
+}
+
+function iniciarTurnoEspecializado(emp) {
+  if (jugadorLocal.trabajando) {
+    mostrarNotificacion('⚠️ Ya estás cumpliendo un turno de trabajo.');
+    return;
+  }
+
+  cerrarModalComercio();
+  jugadorLocal.trabajando = true;
+  jugadorLocal.tiempoTurnoRestante = emp.duracion || 10;
+  jugadorLocal.duracionTurnoTotal = emp.duracion || 10;
+  actualizarEstadoTrabajoUI();
+  mostrarNotificacion(`💼 Turno iniciado: ${emp.puesto} (${emp.duracion}s).`);
+
+  const timer = setInterval(() => {
+    jugadorLocal.tiempoTurnoRestante--;
+    actualizarEstadoTrabajoUI();
+
+    if (jugadorLocal.tiempoTurnoRestante <= 0) {
+      clearInterval(timer);
+      jugadorLocal.trabajando = false;
+      jugadorLocal.oikos += emp.salario;
+      actualizarHUD();
+      actualizarEstadoTrabajoUI();
+      guardarCiudadEnStorage(false);
+      tocarSonido('monedas');
+      mostrarNotificacion(`🎉 ¡Turno de ${emp.puesto} completado! Cobraste +${emp.salario} Oikos.`);
+    }
+  }, 1000);
+}
+
+/* ============================================================
+   SISTEMA BANCARIO
+   ============================================================ */
+function abrirModalBanco() {
+  if (!jugadorLocal.uid) {
+    mostrarNotificacion('🔒 Debes iniciar sesión para acceder a los servicios bancarios.');
+    setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+    return;
+  }
+  const modal = document.getElementById('modal-banco');
+  if (!modal) return;
+  actualizarHUDBanco();
+  modal.style.display = 'flex';
+  if (controles) controles.enabled = false;
+}
+
+function cerrarModalBanco() {
+  const modal = document.getElementById('modal-banco');
+  if (modal) modal.style.display = 'none';
+  if (controles) controles.enabled = true;
+}
+
+function actualizarHUDBanco() {
+  const elBilletera = document.getElementById('saldo-billetera-banco');
+  const elBanco = document.getElementById('saldo-banco-banco');
+  const elDeuda = document.getElementById('deuda-prestamo-banco');
+
+  if (elBilletera) elBilletera.textContent = `${jugadorLocal.oikos.toLocaleString('es-PY')} Ø`;
+  if (elBanco) elBanco.textContent = `${(jugadorLocal.saldoBanco || 0).toLocaleString('es-PY')} Ø`;
+  if (elDeuda) elDeuda.textContent = `${(jugadorLocal.deudaPrestamo || 0).toLocaleString('es-PY')} Ø`;
+}
+
+function depositarEnBanco(monto) {
+  monto = Math.floor(Number(monto));
+  if (isNaN(monto) || monto <= 0) {
+    mostrarNotificacion('❌ Ingresa una cantidad válida para depositar.');
+    return;
+  }
+  if (jugadorLocal.oikos < monto) {
+    mostrarNotificacion('❌ Saldo insuficiente en tu billetera.');
+    tocarSonido('error');
+    return;
+  }
+
+  jugadorLocal.oikos -= monto;
+  jugadorLocal.saldoBanco = (jugadorLocal.saldoBanco || 0) + monto;
+  actualizarHUD();
+  actualizarHUDBanco();
+  guardarCiudadEnStorage(false);
+  tocarSonido('monedas');
+  mostrarNotificacion(`🏦 Has depositado ${monto.toLocaleString('es-PY')} Oikos en tu cuenta.`);
+}
+
+function retirarDeBanco(monto) {
+  monto = Math.floor(Number(monto));
+  if (isNaN(monto) || monto <= 0) {
+    mostrarNotificacion('❌ Ingresa una cantidad válida para retirar.');
+    return;
+  }
+  if ((jugadorLocal.saldoBanco || 0) < monto) {
+    mostrarNotificacion('❌ Saldo insuficiente en tu cuenta bancaria.');
+    tocarSonido('error');
+    return;
+  }
+
+  jugadorLocal.saldoBanco -= monto;
+  jugadorLocal.oikos += monto;
+  actualizarHUD();
+  actualizarHUDBanco();
+  guardarCiudadEnStorage(false);
+  tocarSonido('monedas');
+  mostrarNotificacion(`💵 Has retirado ${monto.toLocaleString('es-PY')} Oikos a tu billetera.`);
+}
+
+function transferirEntreJugadores(destinatario, monto) {
+  destinatario = (destinatario || '').trim();
+  monto = Math.floor(Number(monto));
+  if (!destinatario) {
+    mostrarNotificacion('❌ Ingresa el nombre del ciudadano destinatario.');
+    return;
+  }
+  if (destinatario.toLowerCase() === jugadorLocal.nombre.toLowerCase()) {
+    mostrarNotificacion('❌ No puedes transferir fondos a tu propia cuenta.');
+    return;
+  }
+  if (isNaN(monto) || monto <= 0) {
+    mostrarNotificacion('❌ Ingresa un monto de transferencia válido.');
+    return;
+  }
+  if (jugadorLocal.oikos < monto) {
+    mostrarNotificacion('❌ Saldo insuficiente en tu billetera para transferir.');
+    tocarSonido('error');
+    return;
+  }
+
+  jugadorLocal.oikos -= monto;
+  actualizarHUD();
+  actualizarHUDBanco();
+  guardarCiudadEnStorage(false);
+  tocarSonido('monedas');
+
+  if (socket && socket.connected) {
+    socket.emit('transferencia_bancaria', { destinatario, monto, remitente: jugadorLocal.nombre });
+  }
+  mostrarNotificacion(`💸 ¡Transferencia enviada! -${monto.toLocaleString('es-PY')} Ø a ${destinatario}.`);
+}
+
+function solicitarPrestamoBanco(monto) {
+  monto = Math.floor(Number(monto));
+  if (isNaN(monto) || monto <= 0) {
+    mostrarNotificacion('❌ Ingresa un monto de préstamo válido.');
+    return;
+  }
+  if (monto > 5000) {
+    mostrarNotificacion('❌ El límite máximo de crédito por préstamo es de 5,000 Oikos.');
+    return;
+  }
+  if ((jugadorLocal.deudaPrestamo || 0) > 0) {
+    mostrarNotificacion('❌ Ya tienes un préstamo activo pendiente de pago.');
+    return;
+  }
+
+  const deudaConInteres = Math.round(monto * 1.10); // 10% interés
+  jugadorLocal.oikos += monto;
+  jugadorLocal.deudaPrestamo = deudaConInteres;
+  actualizarHUD();
+  actualizarHUDBanco();
+  guardarCiudadEnStorage(false);
+  tocarSonido('monedas');
+  mostrarNotificacion(`🤝 ¡Préstamo aprobado! Recibiste +${monto} Ø (Deuda a liquidar: ${deudaConInteres} Ø).`);
+}
+
+function pagarPrestamoBanco() {
+  const deuda = jugadorLocal.deudaPrestamo || 0;
+  if (deuda <= 0) {
+    mostrarNotificacion('✨ No tienes préstamos bancarios pendientes.');
+    return;
+  }
+  if (jugadorLocal.oikos < deuda) {
+    mostrarNotificacion(`❌ Saldo insuficiente para saldar la deuda (${deuda.toLocaleString('es-PY')} Oikos requeridos).`);
+    tocarSonido('error');
+    return;
+  }
+
+  jugadorLocal.oikos -= deuda;
+  jugadorLocal.deudaPrestamo = 0;
+  actualizarHUD();
+  actualizarHUDBanco();
+  guardarCiudadEnStorage(false);
+  tocarSonido('monedas');
+  mostrarNotificacion(`🎉 ¡Felicidades! Has liquidado tu préstamo bancario con éxito.`);
+}
+
+function iniciarInteresBancario() {
+  setInterval(() => {
+    if (jugadorLocal.saldoBanco && jugadorLocal.saldoBanco > 0) {
+      const ganancia = Math.max(1, Math.round(jugadorLocal.saldoBanco * 0.015));
+      jugadorLocal.saldoBanco += ganancia;
+      actualizarHUDBanco();
+      guardarCiudadEnStorage(false);
+      mostrarNotificacion(`📈 Rendimiento Bancario: +${ganancia} Ø depositados en tu cuenta de ahorros.`);
+    }
+  }, 120000);
+}
+
+/* ============================================================
+   SISTEMA DE INVENTARIO Y GARAJE
+   ============================================================ */
+function abrirModalInventario() {
+  const modal = document.getElementById('modal-inventario');
+  if (!modal) return;
+  renderizarInventario();
+  modal.style.display = 'flex';
+  if (controles) controles.enabled = false;
+}
+
+function cerrarModalInventario() {
+  const modal = document.getElementById('modal-inventario');
+  if (modal) modal.style.display = 'none';
+  if (controles) controles.enabled = true;
+}
+
+function renderizarInventario() {
+  const listaMochila = document.getElementById('lista-inventario-mochila');
+  const listaGaraje = document.getElementById('lista-inventario-garaje');
+
+  if (listaMochila) {
+    listaMochila.innerHTML = '';
+    const inv = jugadorLocal.inventario || [];
+    if (inv.length === 0) {
+      listaMochila.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; grid-column:1/-1;">Tu mochila está vacía. Visita las tiendas de Katueté para comprar productos.</p>';
+    } else {
+      inv.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'articulo-comercio-card';
+        card.innerHTML = `
+          <div class="icono-art">${item.icono || '📦'}</div>
+          <div class="nombre-art">${item.nombre}</div>
+          <div style="font-size:12px; color:var(--cor-primaria); font-weight:700;">Cantidad: ${item.cantidad || 1}</div>
+          <div class="desc-art">${item.desc || ''}</div>
+          <button class="btn-comprar-art" style="background:#2e7d32;" data-id="${item.id}">Usar / Consumir</button>
+        `;
+        card.querySelector('button').addEventListener('click', () => {
+          usarArticuloInventario(item.id);
+        });
+        listaMochila.appendChild(card);
+      });
+    }
+  }
+
+  if (listaGaraje) {
+    listaGaraje.innerHTML = '';
+    const gar = jugadorLocal.garagem || [];
+    if (gar.length === 0) {
+      listaGaraje.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; grid-column:1/-1;">No tienes vehículos en tu garaje. Visita la Concesionaria para adquirir uno.</p>';
+    } else {
+      gar.forEach(veh => {
+        const card = document.createElement('div');
+        card.className = 'articulo-comercio-card';
+        card.innerHTML = `
+          <div class="icono-art">${veh.icono || '🚗'}</div>
+          <div class="nombre-art">${veh.nombre}</div>
+          <div style="font-size:12px; color:#81d4fa;">Velocidad: ×${veh.velocidad || 1.2}</div>
+          <div class="desc-art">Vehículo registrado en Katueté.</div>
+          <button class="btn-comprar-art" style="background:#0288d1;" data-id="${veh.id}">Conducir por la ciudad</button>
+        `;
+        card.querySelector('button').addEventListener('click', () => {
+          abordarVehiculoGarage(veh);
+        });
+        listaGaraje.appendChild(card);
+      });
+    }
+  }
+}
+
+function usarArticuloInventario(idItem) {
+  if (!jugadorLocal.inventario) return;
+  const idx = jugadorLocal.inventario.findIndex(i => i.id === idItem);
+  if (idx === -1) return;
+
+  const item = jugadorLocal.inventario[idx];
+  if ((item.cantidad || 1) > 1) {
+    item.cantidad--;
+  } else {
+    jugadorLocal.inventario.splice(idx, 1);
+  }
+
+  tocarSonido('monedas');
+  guardarCiudadEnStorage(false);
+  renderizarInventario();
+  mostrarNotificacion(`✨ Has consumido ${item.nombre}. ¡Energía renovada!`);
+}
+
+function abordarVehiculoGarage(veh) {
+  cerrarModalInventario();
+  mostrarNotificacion(`🚗 ¡Subiste a tu ${veh.nombre}! Velocidad de exploración aumentada.`);
+  tocarSonido('construir');
+}
+
+/* ============================================================
+   LISTENERS DE MODALES DE ECONOMÍA, BANCO E INVENTARIO
+   ============================================================ */
+// Comercio
+document.getElementById('btn-cerrar-comercio')?.addEventListener('click', cerrarModalComercio);
+document.querySelectorAll('.tab-comercio').forEach(tab => {
+  tab.addEventListener('click', () => cambiarTabComercio(tab.dataset.tab));
+});
+
+// Banco
+document.getElementById('btn-cerrar-banco')?.addEventListener('click', cerrarModalBanco);
+document.getElementById('btn-depositar-banco')?.addEventListener('click', () => {
+  const inp = document.getElementById('input-deposito-banco');
+  if (inp) { depositarEnBanco(inp.value); inp.value = ''; }
+});
+document.getElementById('btn-retirar-banco')?.addEventListener('click', () => {
+  const inp = document.getElementById('input-retiro-banco');
+  if (inp) { retirarDeBanco(inp.value); inp.value = ''; }
+});
+document.getElementById('btn-transferir-banco')?.addEventListener('click', () => {
+  const dest = document.getElementById('input-destinatario-transf');
+  const monto = document.getElementById('input-monto-transf');
+  if (dest && monto) {
+    transferirEntreJugadores(dest.value, monto.value);
+    monto.value = '';
+  }
+});
+document.getElementById('btn-solicitar-prestamo')?.addEventListener('click', () => {
+  const inp = document.getElementById('input-monto-prestamo');
+  if (inp) { solicitarPrestamoBanco(inp.value); inp.value = ''; }
+});
+document.getElementById('btn-pagar-prestamo')?.addEventListener('click', pagarPrestamoBanco);
+
+// Inventario (Mochila / Garaje)
+document.getElementById('btn-cerrar-inventario')?.addEventListener('click', cerrarModalInventario);
+document.getElementById('dock-btn-inventario')?.addEventListener('click', () => {
+  cerrarTodosLosMenus();
+  abrirModalInventario();
+  actualizarDockActivo('dock-btn-inventario');
+});
+
+// Aislamiento táctil y clics en los nuevos modales
+['modal-comercio', 'modal-banco', 'modal-inventario'].forEach(idModal => {
+  const elModal = document.getElementById(idModal);
+  if (elModal) {
+    elModal.addEventListener('click', (e) => {
+      if (e.target === elModal) {
+        if (idModal === 'modal-comercio') cerrarModalComercio();
+        else if (idModal === 'modal-banco') cerrarModalBanco();
+        else if (idModal === 'modal-inventario') cerrarModalInventario();
+      }
+    });
+    ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'touchstart', 'touchend', 'touchmove', 'wheel'].forEach(evt => {
+      elModal.addEventListener(evt, e => e.stopPropagation());
+    });
+  }
+});
+
+/* ============================================================
    14. AUTO-INICIALIZACIÓN INMEDIATA DEL MAPA 3D
    ============================================================ */
 // Se ejecuta de inmediato al cargar el script para que el visitante
@@ -3561,6 +4602,7 @@ iniciarMotor3D();
 reconstruirVisualBairros3D();
 actualizarChunksCamara(true); // Carga inmediata de los chunks iniciales
 iniciarCicloAlquilerLocal();
+iniciarInteresBancario();
 actualizarHUD();
 desenharMiniMapa();
 

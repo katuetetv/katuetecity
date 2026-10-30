@@ -928,13 +928,18 @@ kbd {
    ============================================================ */
 @media (max-width: 768px) {
   #barra-topo {
-    height: auto;
-    min-height: 48px;
-    padding: 6px 10px;
-    gap: 8px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    padding: 0 8px;
+    gap: 6px;
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    align-items: center;
+    white-space: nowrap;
   }
 
   #barra-topo::-webkit-scrollbar {
@@ -942,26 +947,48 @@ kbd {
   }
 
   #titulo-jogo {
-    font-size: 15px;
-    letter-spacing: 1px;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
   }
 
   .stat-item {
-    font-size: 11px;
-    gap: 4px;
+    font-size: 10px;
+    gap: 3px;
+    flex-shrink: 0;
   }
 
   .stat-item .valor {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .user-badge {
-    max-width: 110px;
-    padding: 3px 8px;
+    max-width: 90px;
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+
+  .bairro-badge {
+    max-width: 95px;
+    padding: 2px 6px;
+    font-size: 10px;
   }
 
   .oikos-badge {
-    padding: 3px 8px;
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+
+  .oikos-badge small {
+    display: none;
+  }
+
+  #badge-online {
+    display: none; /* Ocultar en móviles para evitar que el menú superior se amontone */
+  }
+
+  #indicador-rotacao {
+    display: none; /* En móvil se utiliza el botón flotante #btn-rotar-touch */
   }
 
   .separador-topo {
@@ -969,22 +996,16 @@ kbd {
   }
 
   .btn-topo {
-    padding: 5px 9px;
-    font-size: 11px;
-  }
-
-  .btn-topo-rotacion .rot-txt {
-    display: none;
-  }
-
-  .btn-topo-rotacion kbd {
-    display: none;
+    padding: 4px 7px;
+    font-size: 10px;
+    flex-shrink: 0;
+    border-radius: 8px;
   }
 
   #controles-camara-flotantes {
-    top: 56px;
-    right: 10px;
-    gap: 6px;
+    top: 50px;
+    right: 8px;
+    gap: 5px;
   }
 
   .btn-ctrl-cam {
@@ -1470,6 +1491,360 @@ kbd {
 }
 
 /* ============================================================
+   SISTEMA DE COMERCIO, NEGOCIOS Y BANCO CENTRAL
+   ============================================================ */
+.modal-comercio-box,
+.modal-banco-box,
+.modal-inventario-box {
+  width: 440px;
+  max-width: 94vw;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--cor-painel);
+  border: 1px solid rgba(45, 158, 66, 0.55);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95), 0 0 35px rgba(45, 158, 66, 0.25);
+  margin: auto;
+  position: relative;
+  z-index: 10001;
+  animation: fadeInDown 0.25s ease;
+}
+
+.modal-banco-box {
+  border-color: rgba(251, 192, 45, 0.6);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95), 0 0 35px rgba(251, 192, 45, 0.25);
+}
+
+.subtitulo-comercio {
+  font-size: 11px;
+  color: var(--cor-texto-dim);
+  margin-bottom: 12px;
+}
+
+/* Pestañas de Comercio & Banco */
+.tabs-comercio {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+}
+
+.tab-comercio-btn,
+.tab-banco-btn,
+.tab-inventario-btn {
+  flex: 1;
+  padding: 7px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--cor-texto-dim);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-comercio-btn.activa,
+.tab-banco-btn.activa,
+.tab-inventario-btn.activa {
+  background: rgba(45, 158, 66, 0.25);
+  border-color: var(--cor-secundaria);
+  color: #ffffff;
+}
+
+.tab-banco-btn.activa {
+  background: rgba(251, 192, 45, 0.2);
+  border-color: var(--cor-oikos);
+  color: var(--cor-oikos);
+}
+
+/* Tarjetas de Artículos de Tienda */
+.grid-articulos-tienda {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.item-tienda-tarjeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  transition: all 0.2s ease;
+  gap: 10px;
+}
+
+.item-tienda-tarjeta:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(45, 158, 66, 0.35);
+  transform: translateY(-1px);
+}
+
+.item-icono-lado {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.item-detalles-centro {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item-nombre {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.item-desc {
+  font-size: 10px;
+  color: var(--cor-texto-dim);
+}
+
+.item-precio-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cor-oikos);
+}
+
+.btn-comprar-item {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #2d9e42, #1b5e20);
+  border: 1px solid rgba(129, 199, 132, 0.5);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-comprar-item:hover {
+  background: linear-gradient(135deg, #388e3c, #2e7d32);
+  transform: translateY(-1px);
+}
+
+.btn-vender-item {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #f57c00, #e65100);
+  border: 1px solid rgba(255, 183, 77, 0.5);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-vender-item:hover {
+  background: linear-gradient(135deg, #fb8c00, #ef6c00);
+  transform: translateY(-1px);
+}
+
+/* Panel de Saldos Bancarios */
+.panel-saldos-bancarios {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tarjeta-saldo-item {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tarjeta-saldo-item.destaque {
+  border-color: rgba(251, 192, 45, 0.4);
+  background: rgba(251, 192, 45, 0.08);
+}
+
+.label-saldo {
+  font-size: 10px;
+  color: var(--cor-texto-dim);
+  font-weight: 600;
+}
+
+.saldo-valor {
+  font-size: 15px;
+  color: var(--cor-oikos);
+  font-weight: 800;
+}
+
+.grupo-operacion-bancaria {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grupo-operacion-bancaria label {
+  font-size: 11px;
+  color: var(--cor-texto-dim);
+  font-weight: 600;
+}
+
+.grupo-operacion-bancaria input {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+}
+
+.grupo-operacion-bancaria input:focus {
+  border-color: var(--cor-oikos);
+}
+
+.botones-operacion-rapida {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-accion-banco {
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  color: #fff;
+}
+
+.btn-accion-banco.positivo {
+  background: linear-gradient(135deg, #2d9e42, #1b5e20);
+}
+
+.btn-accion-banco.negativo {
+  background: linear-gradient(135deg, #0288d1, #01579b);
+}
+
+.btn-accion-banco:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.botones-atajo-banco {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.btn-atajo-banco {
+  flex: 1;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--cor-texto-dim);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-atajo-banco:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.tarjeta-prestamo-info {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 11px;
+  color: var(--cor-texto-dim);
+}
+
+.estado-deuda-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 0;
+  background: rgba(239, 83, 80, 0.12);
+  border: 1px solid rgba(239, 83, 80, 0.35);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.estado-deuda-box strong {
+  font-size: 14px;
+  color: #ef5350;
+}
+
+/* Botones de Entrada en Tarjeta de Inspección */
+.btn-comercio-accion {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  background: linear-gradient(135deg, #f57c00, #e65100);
+  border: 1px solid rgba(255, 183, 77, 0.5);
+  color: #ffffff;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(245, 124, 0, 0.35);
+}
+
+.btn-comercio-accion:hover {
+  background: linear-gradient(135deg, #fb8c00, #f57c00);
+  transform: translateY(-1px);
+}
+
+.btn-banco-accion {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  background: linear-gradient(135deg, #fbc02d, #f57f17);
+  border: 1px solid rgba(255, 238, 88, 0.5);
+  color: #212121;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(251, 192, 45, 0.35);
+}
+
+.btn-banco-accion:hover {
+  background: linear-gradient(135deg, #fdd835, #fbc02d);
+  transform: translateY(-1px);
+}
+
+
+/* ============================================================
    ELEMENTOS EXCLUSIVOS DEL ALCALDE Y SISTEMA DE OBRAS
    ============================================================ */
 .nombre-con-badge {
@@ -1624,3 +1999,357 @@ kbd {
   color: #81d4fa;
   font-weight: 700;
 }
+
+/* ============================================================
+   SISTEMA DE COMERCIO, NEGOCIOS Y BANCO CENTRAL
+   ============================================================ */
+.modal-comercio-box,
+.modal-banco-box,
+.modal-inventario-box {
+  width: 440px;
+  max-width: 94vw;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--cor-painel);
+  border: 1px solid rgba(45, 158, 66, 0.55);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95), 0 0 35px rgba(45, 158, 66, 0.25);
+  margin: auto;
+  position: relative;
+  z-index: 10001;
+  animation: fadeInDown 0.25s ease;
+}
+
+.modal-banco-box {
+  border-color: rgba(251, 192, 45, 0.6);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95), 0 0 35px rgba(251, 192, 45, 0.25);
+}
+
+.subtitulo-comercio {
+  font-size: 11px;
+  color: var(--cor-texto-dim);
+  margin-bottom: 12px;
+}
+
+/* Pestañas de Comercio & Banco */
+.tabs-comercio {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+}
+
+.tab-comercio-btn,
+.tab-banco-btn,
+.tab-inventario-btn {
+  flex: 1;
+  padding: 7px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--cor-texto-dim);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-comercio-btn.activa,
+.tab-banco-btn.activa,
+.tab-inventario-btn.activa {
+  background: rgba(45, 158, 66, 0.25);
+  border-color: var(--cor-secundaria);
+  color: #ffffff;
+}
+
+.tab-banco-btn.activa {
+  background: rgba(251, 192, 45, 0.2);
+  border-color: var(--cor-oikos);
+  color: var(--cor-oikos);
+}
+
+/* Tarjetas de Artículos de Tienda */
+.grid-articulos-tienda {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.item-tienda-tarjeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  transition: all 0.2s ease;
+  gap: 10px;
+}
+
+.item-tienda-tarjeta:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(45, 158, 66, 0.35);
+  transform: translateY(-1px);
+}
+
+.item-icono-lado {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.item-detalles-centro {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item-nombre {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.item-desc {
+  font-size: 10px;
+  color: var(--cor-texto-dim);
+}
+
+.item-precio-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cor-oikos);
+}
+
+.btn-comprar-item {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #2d9e42, #1b5e20);
+  border: 1px solid rgba(129, 199, 132, 0.5);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-comprar-item:hover {
+  background: linear-gradient(135deg, #388e3c, #2e7d32);
+  transform: translateY(-1px);
+}
+
+.btn-vender-item {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #f57c00, #e65100);
+  border: 1px solid rgba(255, 183, 77, 0.5);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-vender-item:hover {
+  background: linear-gradient(135deg, #fb8c00, #ef6c00);
+  transform: translateY(-1px);
+}
+
+/* Panel de Saldos Bancarios */
+.panel-saldos-bancarios {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tarjeta-saldo-item {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tarjeta-saldo-item.destaque {
+  border-color: rgba(251, 192, 45, 0.4);
+  background: rgba(251, 192, 45, 0.08);
+}
+
+.label-saldo {
+  font-size: 10px;
+  color: var(--cor-texto-dim);
+  font-weight: 600;
+}
+
+.saldo-valor {
+  font-size: 15px;
+  color: var(--cor-oikos);
+  font-weight: 800;
+}
+
+.grupo-operacion-bancaria {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grupo-operacion-bancaria label {
+  font-size: 11px;
+  color: var(--cor-texto-dim);
+  font-weight: 600;
+}
+
+.grupo-operacion-bancaria input {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+}
+
+.grupo-operacion-bancaria input:focus {
+  border-color: var(--cor-oikos);
+}
+
+.botones-operacion-rapida {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-accion-banco {
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  color: #fff;
+}
+
+.btn-accion-banco.positivo {
+  background: linear-gradient(135deg, #2d9e42, #1b5e20);
+}
+
+.btn-accion-banco.negativo {
+  background: linear-gradient(135deg, #0288d1, #01579b);
+}
+
+.btn-accion-banco:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.botones-atajo-banco {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.btn-atajo-banco {
+  flex: 1;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--cor-texto-dim);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-atajo-banco:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.tarjeta-prestamo-info {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 11px;
+  color: var(--cor-texto-dim);
+}
+
+.estado-deuda-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 0;
+  background: rgba(239, 83, 80, 0.12);
+  border: 1px solid rgba(239, 83, 80, 0.35);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.estado-deuda-box strong {
+  font-size: 14px;
+  color: #ef5350;
+}
+
+/* Botones de Entrada en Tarjeta de Inspección */
+.btn-comercio-accion {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  background: linear-gradient(135deg, #f57c00, #e65100);
+  border: 1px solid rgba(255, 183, 77, 0.5);
+  color: #ffffff;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(245, 124, 0, 0.35);
+}
+
+.btn-comercio-accion:hover {
+  background: linear-gradient(135deg, #fb8c00, #f57c00);
+  transform: translateY(-1px);
+}
+
+.btn-banco-accion {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  background: linear-gradient(135deg, #fbc02d, #f57f17);
+  border: 1px solid rgba(255, 238, 88, 0.5);
+  color: #212121;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(251, 192, 45, 0.35);
+}
+
+.btn-banco-accion:hover {
+  background: linear-gradient(135deg, #fdd835, #fbc02d);
+  transform: translateY(-1px);
+}
+

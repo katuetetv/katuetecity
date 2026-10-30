@@ -202,16 +202,64 @@
             <span class="icono-cat">🏪</span>
             <div class="info-item">
               <strong>Tienda Comercial</strong>
-              <small>Genera actividad económica</small>
+              <small>Artículos generales y abastecimiento</small>
               <span class="costo-tag">1.100 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="padaria">
+            <span class="icono-cat">🥖</span>
+            <div class="info-item">
+              <strong>Panadería Artesanal</strong>
+              <small>Pan fresco, café y bocadillos</small>
+              <span class="costo-tag">1.200 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="mercado">
+            <span class="icono-cat">🛒</span>
+            <div class="info-item">
+              <strong>Supermercado Municipal</strong>
+              <small>Víveres, alimentos y herramientas</small>
+              <span class="costo-tag">2.000 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="loja_roupa">
+            <span class="icono-cat">👕</span>
+            <div class="info-item">
+              <strong>Tienda de Ropa y Modas</strong>
+              <small>Prendas, atuendos y accesorios</small>
+              <span class="costo-tag">1.500 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="restaurante">
+            <span class="icono-cat">🍽️</span>
+            <div class="info-item">
+              <strong>Restaurante Gourmet</strong>
+              <small>Platos tradicionales y gastronomía</small>
+              <span class="costo-tag">1.600 Ø</span>
             </div>
           </div>
           <div class="item-catalogo btn-ferramenta" data-ferramenta="posto">
             <span class="icono-cat">⛽</span>
             <div class="info-item">
               <strong>Estación de Servicios</strong>
-              <small>Abastecimiento de vehículos</small>
+              <small>Combustible y mantenimiento</small>
               <span class="costo-tag">1.800 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="loja_veiculos">
+            <span class="icono-cat">🚗</span>
+            <div class="info-item">
+              <strong>Concesionaria de Autos (2x2)</strong>
+              <small>Venta y alquiler de vehículos</small>
+              <span class="costo-tag">3.200 Ø</span>
+            </div>
+          </div>
+          <div class="item-catalogo btn-ferramenta" data-ferramenta="banco">
+            <span class="icono-cat">🏦</span>
+            <div class="info-item">
+              <strong>Banco de Katueté (2x2)</strong>
+              <small>Depósitos, intereses y créditos</small>
+              <span class="costo-tag">4.000 Ø</span>
             </div>
           </div>
         </div>
@@ -325,6 +373,8 @@
       <div id="zona-acciones-inmueble" style="margin-top: 10px; display: none;">
         <button id="btn-alquilar-casa" class="btn-alquiler">🔑 Alquilar Vivienda (150 Oikos)</button>
         <button id="btn-desalojar-casa" class="btn-desalojo" style="display: none;">🚪 Entregar Llaves</button>
+        <button id="btn-entrar-comercio" class="btn-comercio-accion" style="display: none;">🛒 Entrar al Comercio</button>
+        <button id="btn-entrar-banco" class="btn-banco-accion" style="display: none;">🏦 Operaciones Bancarias</button>
         <button id="btn-upgrade-calle" class="btn-upgrade-vial" style="display: none;">⬆️ Mejorar Calle</button>
         <button id="btn-mover-edificio" class="btn-mover-inmueble" style="display: none;">🔄 Mover de Lugar</button>
       </div>
@@ -352,6 +402,11 @@
       <button class="btn-dock" id="dock-btn-trabajar" title="Centro de Trabajo">
         <span class="icono-dock">💼</span>
         <span class="etiqueta-dock">Empleo</span>
+      </button>
+
+      <button class="btn-dock" id="dock-btn-inventario" title="Mochila e Inventario">
+        <span class="icono-dock">🎒</span>
+        <span class="etiqueta-dock">Mochila</span>
       </button>
 
       <button class="btn-dock" id="dock-btn-ciudad" title="Plano y Habitantes">
@@ -464,6 +519,139 @@
         </div>
 
         <button id="admin-cerrar-modal" class="btn-secundario" style="width: 100%; margin-top: 14px;">Cerrar Panel</button>
+      </div>
+    </div>
+
+    <!-- Modal de Comercio (Comprar, Vender y Empleos de la Tienda) -->
+    <div id="modal-comercio" class="modal-flotante" style="display: none;">
+      <div class="login-container-mini modal-comercio-box">
+        <div class="cabecera-modal-mini">
+          <h3 id="comercio-titulo">🏪 Comercio de Katueté</h3>
+          <button id="btn-cerrar-modal-comercio" class="btn-cerrar-mini" type="button">✖</button>
+        </div>
+        
+        <p class="subtitulo-comercio" id="comercio-subtitulo">Bienes, servicios y oportunidades laborales</p>
+
+        <!-- Pestañas del Comercio -->
+        <div class="tabs-comercio">
+          <button type="button" class="tab-comercio-btn activa" data-seccion="comprar">🛒 Comprar</button>
+          <button type="button" class="tab-comercio-btn" data-seccion="vender">💰 Vender</button>
+          <button type="button" class="tab-comercio-btn" data-seccion="empleo">💼 Empleo</button>
+        </div>
+
+        <!-- Sección 1: Comprar Artículos -->
+        <div id="seccion-comercio-comprar" class="contenedor-tab-comercio">
+          <div id="lista-articulos-comprar" class="grid-articulos-tienda"></div>
+        </div>
+
+        <!-- Sección 2: Vender de mi Inventario -->
+        <div id="seccion-comercio-vender" class="contenedor-tab-comercio" style="display: none;">
+          <div id="lista-articulos-vender" class="grid-articulos-tienda"></div>
+        </div>
+
+        <!-- Sección 3: Empleo Especializado en este Comercio -->
+        <div id="seccion-comercio-empleo" class="contenedor-tab-comercio" style="display: none;">
+          <div id="info-empleo-local" class="tarjeta-turno"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal del Banco de Katueté (Depósitos, Retiros, Transferencias y Créditos) -->
+    <div id="modal-banco" class="modal-flotante" style="display: none;">
+      <div class="login-container-mini modal-banco-box">
+        <div class="cabecera-modal-mini">
+          <h3>🏦 Banco Central de Katueté</h3>
+          <button id="btn-cerrar-modal-banco" class="btn-cerrar-mini" type="button">✖</button>
+        </div>
+
+        <!-- Resumen de Saldos -->
+        <div class="panel-saldos-bancarios">
+          <div class="tarjeta-saldo-item">
+            <span class="label-saldo">💵 Billetera (Efectivo)</span>
+            <strong id="banco-saldo-billetera" class="saldo-valor">0 Ø</strong>
+          </div>
+          <div class="tarjeta-saldo-item destaque">
+            <span class="label-saldo">🏛️ Bóveda (Rinde +1.5%)</span>
+            <strong id="banco-saldo-cuenta" class="saldo-valor">0 Ø</strong>
+          </div>
+        </div>
+
+        <!-- Pestañas Bancarias -->
+        <div class="tabs-comercio">
+          <button type="button" class="tab-banco-btn activa" data-tab="deposito">📥 Depósito/Retiro</button>
+          <button type="button" class="tab-banco-btn" data-tab="transferir">💸 Transferir</button>
+          <button type="button" class="tab-banco-btn" data-tab="prestamo">📜 Préstamos</button>
+        </div>
+
+        <!-- Tab 1: Depósito y Retiro -->
+        <div id="tab-banco-deposito" class="contenedor-tab-banco">
+          <div class="grupo-operacion-bancaria">
+            <label>Monto de la Operación (Ø):</label>
+            <input type="number" id="banco-input-monto" min="1" placeholder="Ej. 500" />
+            <div class="botones-operacion-rapida">
+              <button type="button" id="btn-banco-depositar" class="btn-accion-banco positivo">📥 Depositar en Bóveda</button>
+              <button type="button" id="btn-banco-retirar" class="btn-accion-banco negativo">📤 Retirar a Billetera</button>
+            </div>
+            <div class="botones-atajo-banco">
+              <button type="button" class="btn-atajo-banco" id="btn-banco-todo-dep">Depositar Todo</button>
+              <button type="button" class="btn-atajo-banco" id="btn-banco-todo-ret">Retirar Todo</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Transferencias P2P entre Ciudadanos -->
+        <div id="tab-banco-transferir" class="contenedor-tab-banco" style="display: none;">
+          <div class="grupo-operacion-bancaria">
+            <label>Ciudadano Destinatario:</label>
+            <input type="text" id="banco-input-destinatario" placeholder="Nombre del jugador" />
+            <label style="margin-top: 6px;">Monto a Enviar (Ø):</label>
+            <input type="number" id="banco-input-monto-transferir" min="1" placeholder="Cantidad de Oikos" />
+            <button type="button" id="btn-banco-transferir-ejecutar" class="btn-accion-banco positivo" style="margin-top: 8px;">
+              💸 Enviar Oikos al Ciudadano
+            </button>
+          </div>
+        </div>
+
+        <!-- Tab 3: Préstamos Municipales -->
+        <div id="tab-banco-prestamo" class="contenedor-tab-banco" style="display: none;">
+          <div class="tarjeta-prestamo-info">
+            <p>Financia tus obras y negocios con créditos avalados por la Municipalidad.</p>
+            <div class="estado-deuda-box">
+              <span>Deuda Pendiente:</span>
+              <strong id="banco-valor-deuda">0 Ø</strong>
+            </div>
+            <div class="botones-auth-apilados" style="margin-top: 8px;">
+              <button type="button" id="btn-solicitar-credito-1000" class="btn-secundario-completo">📜 Solicitar Crédito (1.000 Ø)</button>
+              <button type="button" id="btn-solicitar-credito-3000" class="btn-secundario-completo">📜 Solicitar Crédito (3.000 Ø)</button>
+              <button type="button" id="btn-pagar-deuda" class="btn-login-principal" style="background:#2e7d32;">💳 Amortizar / Pagar Deuda</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Modal de Mochila e Inventario Personal -->
+    <div id="modal-inventario" class="modal-flotante" style="display: none;">
+      <div class="login-container-mini modal-inventario-box">
+        <div class="cabecera-modal-mini">
+          <h3>🎒 Mochila y Garaje Personal</h3>
+          <button id="btn-cerrar-modal-inventario" class="btn-cerrar-mini" type="button">✖</button>
+        </div>
+        <p class="subtitulo-comercio">Artículos adquiridos, suministros y vehículos</p>
+
+        <div class="tabs-comercio">
+          <button type="button" class="tab-inventario-btn activa" data-tab="articulos">📦 Artículos</button>
+          <button type="button" class="tab-inventario-btn" data-tab="garaje">🚗 Garaje</button>
+        </div>
+
+        <div id="tab-inventario-articulos" class="contenedor-tab-inventario">
+          <div id="lista-mochila-items" class="grid-articulos-tienda"></div>
+        </div>
+
+        <div id="tab-inventario-garaje" class="contenedor-tab-inventario" style="display: none;">
+          <div id="lista-garaje-vehiculos" class="grid-articulos-tienda"></div>
+        </div>
       </div>
     </div>
 
