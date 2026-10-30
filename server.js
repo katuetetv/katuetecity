@@ -10,6 +10,9 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
+
+const ARCHIVO_PERSISTENCIA = path.join(__dirname, 'katuete_mapa_servidor.json');
 
 const app = express();
 const server = http.createServer(app);
@@ -38,6 +41,8 @@ const COSTO_ALQUILER_CICLO = 150; // Oikos cada ciclo por casa alquilada
 // Costos de construcción en Oikos
 const COSTOS_CONSTRUCCION = {
   estrada: 0,
+  estrada_terra: 0,
+  estrada_empedrado: 120,
   casa: 400,
   sobrado: 900,
   predio: 2200,
@@ -46,11 +51,23 @@ const COSTOS_CONSTRUCCION = {
   parque: 600,
   usina: 2800,
   caixaDAgua: 2000,
+  municipalidad: 5000,
   carro: 250,
   caminhao: 600,
   onibus: 900,
   viatura: 500
 };
+
+// Huellas de tamaño multi-celda
+const DIMENSIONES_OBJETOS = {
+  parque: { w: 3, h: 3 },
+  usina: { w: 2, h: 2 },
+  municipalidad: { w: 3, h: 3 }
+};
+
+function obtenerDimensionesObjeto(tipo) {
+  return DIMENSIONES_OBJETOS[tipo] || { w: 1, h: 1 };
+}
 
 // Registro de jugadores conectados: socketId -> datos
 const jugadores = new Map();
@@ -104,14 +121,65 @@ function inicializarCiudadBase() {
   mapa[c - 4][c - 5] = { tipo: 'loja', rot: 0, autor: 'Municipio' };
   mapa[c + 4][c - 5] = { tipo: 'loja', rot: 0, autor: 'Municipio' };
   mapa[c + 4][c + 5] = { tipo: 'posto', rot: 0, autor: 'Municipio' };
-  mapa[c + 3][c - 11] = { tipo: 'parque', rot: 0, autor: 'Municipio' };
-  mapa[c - 3][c - 11] = { tipo: 'parque', rot: 0, autor: 'Municipio' };
-  mapa[c - 11][c + 11] = { tipo: 'usina', rot: 0, autor: 'Municipio' };
+  mapa[c - 7][c - 6] = { tipo: 'municipalidad', rot: 0, autor: 'Municipio', w: 3, h: 3 };
+  mapa[c + 2][c - 13] = { tipo: 'parque', rot: 0, autor: 'Municipio', w: 3, h: 3 };
+  mapa[c - 12][c + 10] = { tipo: 'usina', rot: 0, autor: 'Municipio', w: 2, h: 2 };
   mapa[c + 11][c + 11] = { tipo: 'caixaDAgua', rot: 0, autor: 'Municipio' };
 
   console.log('✅ Ciudad inicial de KatueteCity creada en el servidor (Mapa 400x400).');
 }
-inicializarCiudadBase();
+function cargarMapaDesdeArchivo() {
+  if (fs.existsSync(ARCHIVO_PERSISTENCIA)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(ARCHIVO_PERSISTENCIA, 'utf8'));
+      if (Array.isArray(data) && data.length > 0) {
+        data.forEach(item => {
+          if (item.x >= 0 && item.x < TAMANHO_GRADE && item.z >= 0 && item.z < TAMANHO_GRADE) {
+            mapa[item.z][item.x] = {
+              tipo: item.tipo,
+              rot: item.rot || 0,
+              inquilino: item.inquilino || null,
+              autor: item.autor || 'Municipio'
+            };
+          }
+        });
+        console.log(`💾 Mapa del servidor cargado desde archivo (${data.length} edificios restaurados).`);
+        return true;
+      }
+    } catch (e) {
+      console.warn('⚠️ No se pudo leer el archivo de guardado del servidor:', e.message);
+    }
+  }
+  return false;
+}
+
+if (!cargarMapaDesdeArchivo()) {
+  inicializarCiudadBase();
+}
+
+// Autoguardado periódico del mapa compartido cada 30 segundos
+setInterval(() => {
+  try {
+    const mapaCompacto = [];
+    for (let z = 0; z < TAMANHO_GRADE; z++) {
+      for (let x = 0; x < TAMANHO_GRADE; x++) {
+        const celda = mapa[z][x];
+        if (celda) {
+          mapaCompacto.push({
+            x, z,
+            tipo: celda.tipo,
+            rot: celda.rot,
+            inquilino: celda.inquilino || null,
+            autor: celda.autor || 'Municipio'
+          });
+        }
+      }
+    }
+    fs.writeFileSync(ARCHIVO_PERSISTENCIA, JSON.stringify(mapaCompacto));
+  } catch (err) {
+    console.error('Error en autoguardado del servidor:', err.message);
+  }
+}, 30000);
 
 /* ============================================================
    LÓGICA DE WEBSOCKETS (SOCKET.IO)
@@ -335,9 +403,20 @@ io.on('connection', (socket) => {
 
     if (gx < 0 || gz < 0 || gx >= TAMANHO_GRADE || gz >= TAMANHO_GRADE) return;
 
-    if (mapa[gz][gx] !== null) {
-      socket.emit('notificacion', { tipo: 'error', mensaje: 'Ese terreno ya está ocupado.' });
-      return;
+    const dims = obtenerDimensionesObjeto(tipo);
+    const w = dims.w;
+    const h = dims.h;
+
+    // Verificar si todo el espacio de la huella está libre
+    for (let dz = 0; dz < h; dz++) {
+      for (let dx = 0; dx < w; dx++) {
+        const cx = gx + dx;
+        const cz = gz + dz;
+        if (cx >= TAMANHO_GRADE || cz >= TAMANHO_GRADE || mapa[cz]?.[cx] !== null) {
+          socket.emit('notificacion', { tipo: 'error', mensaje: 'Ese terreno ya está ocupado o no cabe la huella.' });
+          return;
+        }
+      }
     }
 
     const costo = COSTOS_CONSTRUCCION[tipo] || 0;
@@ -354,8 +433,23 @@ io.on('connection', (socket) => {
       tipo,
       rot: rot || 0,
       inquilino: null,
-      autor: jugador.nombre
+      autor: jugador.nombre,
+      w,
+      h,
+      esRaiz: true
     };
+
+    for (let dz = 0; dz < h; dz++) {
+      for (let dx = 0; dx < w; dx++) {
+        if (dx === 0 && dz === 0) continue;
+        mapa[gz + dz][gx + dx] = {
+          tipo,
+          rootX: gx,
+          rootZ: gz,
+          esHijo: true
+        };
+      }
+    }
 
     // Confirmar al constructor con su saldo actualizado
     socket.emit('construccion_confirmada', {
@@ -367,10 +461,12 @@ io.on('connection', (socket) => {
     io.emit('objeto_construido', {
       tipo, gx, gz, rot,
       autor: jugador.nombre,
-      inquilino: null
+      inquilino: null,
+      w,
+      h
     });
 
-    console.log(`🔨 [${jugador.nombre}] construyó ${tipo} en (${gx}, ${gz})`);
+    console.log(`🔨 [${jugador.nombre}] construyó ${tipo} en (${gx}, ${gz}) [${w}x${h}]`);
   });
 
   /**
@@ -381,8 +477,18 @@ io.on('connection', (socket) => {
     if (!jugador) return;
 
     if (gx < 0 || gz < 0 || gx >= TAMANHO_GRADE || gz >= TAMANHO_GRADE) return;
-    const celda = mapa[gz][gx];
+    let celda = mapa[gz]?.[gx];
     if (!celda) return;
+
+    if (celda.esHijo) {
+      gx = celda.rootX;
+      gz = celda.rootZ;
+      celda = mapa[gz]?.[gx];
+      if (!celda) return;
+    }
+
+    const w = celda.w || 1;
+    const h = celda.h || 1;
 
     // Si tiene un inquilino ajeno, avisar
     if (celda.inquilino && celda.inquilino !== jugador.nombre) {
@@ -395,7 +501,13 @@ io.on('connection', (socket) => {
       jugador.casasAlquiladas = jugador.casasAlquiladas.filter(c => !(c.gx === gx && c.gz === gz));
     }
 
-    mapa[gz][gx] = null;
+    for (let dz = 0; dz < h; dz++) {
+      for (let dx = 0; dx < w; dx++) {
+        if (gz + dz < TAMANHO_GRADE && gx + dx < TAMANHO_GRADE) {
+          mapa[gz + dz][gx + dx] = null;
+        }
+      }
+    }
 
     io.emit('objeto_demolido', {
       gx, gz,
@@ -403,6 +515,92 @@ io.on('connection', (socket) => {
     });
 
     console.log(`💥 [${jugador.nombre}] demolió edificio en (${gx}, ${gz})`);
+  });
+
+  /**
+   * 5.1 MEJORA DE CALLE SINCRONIZADA
+   */
+  socket.on('solicitar_mejora_calle', ({ gx, gz, nuevoTipo, costo }) => {
+    const jugador = jugadores.get(socket.id);
+    if (!jugador) return;
+    if (gx < 0 || gz < 0 || gx >= TAMANHO_GRADE || gz >= TAMANHO_GRADE) return;
+    const celda = mapa[gz]?.[gx];
+    if (!celda) return;
+
+    if (jugador.oikos < (costo || 0)) {
+      socket.emit('notificacion', { tipo: 'error', mensaje: 'Saldo insuficiente.' });
+      return;
+    }
+    jugador.oikos -= (costo || 0);
+    celda.tipo = nuevoTipo;
+    io.emit('calle_mejorada', { gx, gz, nuevoTipo, mejoradoPor: jugador.nombre });
+    socket.emit('actualizar_saldo_jugador', { nombre: jugador.nombre, oikos: jugador.oikos });
+  });
+
+  /**
+   * 5.2 MOVER CONSTRUCCIÓN SINCRONIZADO
+   */
+  socket.on('solicitar_mover', ({ origenGx, origenGz, destinoGx, destinoGz }) => {
+    const jugador = jugadores.get(socket.id);
+    if (!jugador) return;
+    let celda = mapa[origenGz]?.[origenGx];
+    if (!celda) return;
+    if (celda.esHijo) {
+      origenGx = celda.rootX;
+      origenGz = celda.rootZ;
+      celda = mapa[origenGz]?.[origenGx];
+      if (!celda) return;
+    }
+
+    const w = celda.w || 1;
+    const h = celda.h || 1;
+    for (let dz = 0; dz < h; dz++) {
+      for (let dx = 0; dx < w; dx++) {
+        const cx = destinoGx + dx;
+        const cz = destinoGz + dz;
+        if (cx >= TAMANHO_GRADE || cz >= TAMANHO_GRADE || mapa[cz]?.[cx] !== null) {
+          socket.emit('notificacion', { tipo: 'error', mensaje: 'Terreno de destino no disponible.' });
+          return;
+        }
+      }
+    }
+
+    // Limpiar origen
+    for (let dz = 0; dz < h; dz++) {
+      for (let dx = 0; dx < w; dx++) {
+        mapa[origenGz + dz][origenGx + dx] = null;
+      }
+    }
+
+    // Colocar en destino
+    mapa[destinoGz][destinoGx] = {
+      tipo: celda.tipo,
+      rot: celda.rot,
+      inquilino: celda.inquilino,
+      autor: celda.autor,
+      w,
+      h,
+      esRaiz: true
+    };
+    for (let dz = 0; dz < h; dz++) {
+      for (let dx = 0; dx < w; dx++) {
+        if (dx === 0 && dz === 0) continue;
+        mapa[destinoGz + dz][destinoGx + dx] = {
+          tipo: celda.tipo,
+          rootX: destinoGx,
+          rootZ: destinoGz,
+          esHijo: true
+        };
+      }
+    }
+
+    io.emit('objeto_movido', {
+      origenGx, origenGz,
+      destinoGx, destinoGz,
+      tipo: celda.tipo,
+      rot: celda.rot,
+      w, h
+    });
   });
 
   /**

@@ -61,28 +61,52 @@ const COSTO_ALQUILER_CICLO = 150;
 const SALARIO_TURNO_OIKOS = 350;
 
 const COSTOS_CONSTRUCCION = {
-  estrada: 0,
+  estrada_terra: 0,
+  estrada_empedrado: 120,
+  estrada: 0, // Exclusivo Alcalde
   casa: 400,
   sobrado: 900,
   predio: 2200,
   loja: 1100,
   posto: 1800,
-  parque: 600,
-  usina: 2800,
-  caixaDAgua: 2000
+  parque: 600,       // Exclusivo Alcalde (3x3)
+  usina: 2800,       // Exclusivo Alcalde (2x2)
+  caixaDAgua: 2000,  // Exclusivo Alcalde
+  municipalidad: 5000 // Exclusivo Alcalde (3x3)
 };
+
+// Obras reservadas exclusivamente para el Alcalde (Admin)
+const CONSTRUCCIONES_EXCLUSIVAS_ALCALDE = [
+  'parque',
+  'usina',
+  'caixaDAgua',
+  'estrada',
+  'municipalidad'
+];
+
+// Dimensiones de huella en la grilla para construcciones de múltiples celdas
+const DIMENSIONES_OBJETOS = {
+  parque: { w: 3, h: 3 },
+  usina: { w: 2, h: 2 },
+  municipalidad: { w: 3, h: 3 }
+};
+
+function obtenerDimensionesObjeto(tipo) {
+  return DIMENSIONES_OBJETOS[tipo] || { w: 1, h: 1 };
+}
 
 const estado = {
   ferramentaAtiva: 'ponteiro',
   rotacaoAtual: 0,
   celulaSelecionada: null,
-  grade: [], // [z][x] -> { tipo, rot, mesh, inquilino, autor }
+  grade: [], // [z][x] -> { tipo, rot, mesh, inquilino, autor, w, h, esRaiz, rootX, rootZ, esHijo }
   bairros: [], // [ { id, nome, tipo, cor, x1, z1, x2, z2 } ]
   seleccionBairroInicio: null,
   meshPreviewSeleccionBairro: null,
   barrioEditandoId: null,
   arrastandoEstrada: false,
-  inicioArrasto: null
+  inicioArrasto: null,
+  objetoMoviendo: null // { tipo, rot, inquilino, autor, w, h, origenGx, origenGz }
 };
 
 for (let z = 0; z < TAMANHO_GRADE; z++) {
@@ -508,9 +532,9 @@ function generarCiudadBase() {
   instanciarObjetoLocal('loja', c - 4, c - 5, 0, null, 'Municipio');
   instanciarObjetoLocal('loja', c + 4, c - 5, 0, null, 'Municipio');
   instanciarObjetoLocal('posto', c + 4, c + 5, 0, null, 'Municipio');
-  instanciarObjetoLocal('parque', c + 3, c - 11, 0, null, 'Municipio');
-  instanciarObjetoLocal('parque', c - 3, c - 11, 0, null, 'Municipio');
-  instanciarObjetoLocal('usina', c - 11, c + 11, 0, null, 'Municipio');
+  instanciarObjetoLocal('municipalidad', c - 7, c - 6, 0, null, 'Municipio'); // 3x3 Palacio Municipal
+  instanciarObjetoLocal('parque', c + 2, c - 13, 0, null, 'Municipio');       // 3x3 Parque Ecológico
+  instanciarObjetoLocal('usina', c - 12, c + 10, 0, null, 'Municipio');       // 2x2 Usina Eléctrica
   instanciarObjetoLocal('caixaDAgua', c + 11, c + 11, 0, null, 'Municipio');
 
   // Distrito inicial predeterminado
@@ -763,33 +787,290 @@ function criarPosto(rot) {
 
 function criarParque() {
   const grupo = new THREE.Group();
-  const piso = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.08, 3.8), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
-  piso.position.y = 0.04;
+  const tamanho = TAMANHO_CELULA * 3; // 12.0 (Huella 3x3 celdas)
+
+  // 1. Césped base
+  const piso = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.2, 0.12, tamanho - 0.2), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+  piso.position.y = 0.06;
+  piso.receiveShadow = true;
   grupo.add(piso);
 
-  const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.2, 6), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
-  tronco.position.set(0, 0.6, 0);
-  grupo.add(tronco);
+  // 2. Caminos peatonales de piedra en cruz
+  const matCamino = new THREE.MeshLambertMaterial({ color: 0xd7ccc8 });
+  const caminoX = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.4, 0.03, 1.8), matCamino);
+  caminoX.position.y = 0.13;
+  grupo.add(caminoX);
 
-  const copa = new THREE.Mesh(new THREE.SphereGeometry(0.8, 7, 7), new THREE.MeshLambertMaterial({ color: 0x388e3c }));
-  copa.position.set(0, 1.6, 0);
-  grupo.add(copa);
+  const caminoZ = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.03, tamanho - 0.4), matCamino);
+  caminoZ.position.y = 0.13;
+  grupo.add(caminoZ);
+
+  // Plaza central circular
+  const plazaCentral = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 0.04, 16), matCamino);
+  plazaCentral.position.y = 0.135;
+  grupo.add(plazaCentral);
+
+  // 3. Fuente ornamental central con agua
+  const matBordeFuente = new THREE.MeshLambertMaterial({ color: 0xb0bec5 });
+  const baseFuente = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 0.4, 16), matBordeFuente);
+  baseFuente.position.y = 0.35;
+  grupo.add(baseFuente);
+
+  const matAgua = new THREE.MeshLambertMaterial({ color: 0x0288d1, transparent: true, opacity: 0.85 });
+  const aguaFuente = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 0.38, 16), matAgua);
+  aguaFuente.position.y = 0.38;
+  grupo.add(aguaFuente);
+
+  const pilarFuente = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.1, 8), matBordeFuente);
+  pilarFuente.position.y = 0.85;
+  grupo.add(pilarFuente);
+
+  const platoSuperior = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.5, 0.18, 12), matBordeFuente);
+  platoSuperior.position.y = 1.3;
+  grupo.add(platoSuperior);
+
+  const chorroAgua = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.15, 0.7, 8), matAgua);
+  chorroAgua.position.y = 1.7;
+  grupo.add(chorroAgua);
+
+  // 4. Árboles y vegetación en las 4 esquinas
+  const matTronco = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const matCopa1 = new THREE.MeshLambertMaterial({ color: 0x388e3c });
+  const matCopa2 = new THREE.MeshLambertMaterial({ color: 0x1b5e20 });
+
+  const posicionesArboles = [
+    [-3.8, -3.8, 1.2, matCopa1],
+    [3.8, -3.8, 1.3, matCopa2],
+    [-3.8, 3.8, 1.25, matCopa2],
+    [3.8, 3.8, 1.1, matCopa1],
+    [-1.6, -3.8, 0.9, matCopa1],
+    [1.6, 3.8, 0.95, matCopa2]
+  ];
+
+  posicionesArboles.forEach(([ax, az, escala, matCopa]) => {
+    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * escala, 0.22 * escala, 1.7 * escala, 6), matTronco);
+    tronco.position.set(ax, 0.85 * escala, az);
+    tronco.castShadow = true;
+    grupo.add(tronco);
+
+    const copa = new THREE.Mesh(new THREE.SphereGeometry(1.15 * escala, 8, 8), matCopa);
+    copa.position.set(ax, 2.2 * escala, az);
+    copa.castShadow = true;
+    grupo.add(copa);
+  });
+
+  // 5. Bancos de parque (madera y soporte)
+  const matMadera = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+  [
+    [-1.8, 1.6, 0],
+    [1.8, -1.6, Math.PI],
+    [1.6, 1.8, Math.PI / 2],
+    [-1.6, -1.8, -Math.PI / 2]
+  ].forEach(([bx, bz, rotY]) => {
+    const banco = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.3), matMadera);
+    banco.position.set(bx, 0.24, bz);
+    banco.rotation.y = rotY;
+    grupo.add(banco);
+  });
+
+  // 6. Farolas coloniales
+  const matFarol = new THREE.MeshLambertMaterial({ color: 0x212121 });
+  const matLuz = new THREE.MeshBasicMaterial({ color: 0xfff9c4 });
+  [[-2.4, -2.4], [2.4, -2.4], [-2.4, 2.4], [2.4, 2.4]].forEach(([lx, lz]) => {
+    const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.2, 6), matFarol);
+    poste.position.set(lx, 1.1, lz);
+    grupo.add(poste);
+
+    const lampara = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), matLuz);
+    lampara.position.set(lx, 2.2, lz);
+    grupo.add(lampara);
+  });
 
   return grupo;
 }
 
 function criarUsina(rot) {
   const grupo = new THREE.Group();
-  const galpao = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 3.2), new THREE.MeshLambertMaterial({ color: 0x37474f }));
-  galpao.position.y = 1.1;
+  const tamanho = TAMANHO_CELULA * 2; // 8.0 (Huella 2x2 celdas)
+
+  // 1. Losa de hormigón reforzado
+  const base = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.2, 0.18, tamanho - 0.2), new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+  base.position.y = 0.09;
+  base.receiveShadow = true;
+  grupo.add(base);
+
+  // 2. Nave principal de turbinas y generadores
+  const matGalpao = new THREE.MeshLambertMaterial({ color: 0x37474f });
+  const galpao = new THREE.Mesh(new THREE.BoxGeometry(4.8, 3.0, 3.6), matGalpao);
+  galpao.position.set(-1.0, 1.5 + 0.18, 1.2);
   galpao.castShadow = true;
   grupo.add(galpao);
 
-  [-0.8, 0.8].forEach(cx => {
-    const chamine = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 4.2, 10), new THREE.MeshLambertMaterial({ color: 0xc62828 }));
-    chamine.position.set(cx, 2.1, -0.6);
+  // Techo industrial a dos aguas
+  const matTecho = new THREE.MeshLambertMaterial({ color: 0x263238 });
+  const techo = new THREE.Mesh(new THREE.ConeGeometry(3.4, 1.2, 4), matTecho);
+  techo.position.set(-1.0, 3.6 + 0.18, 1.2);
+  techo.rotation.y = Math.PI / 4;
+  grupo.add(techo);
+
+  // 3. Dos chimeneas de refrigeración industriales con bandas de seguridad aérea
+  const matChamine = new THREE.MeshLambertMaterial({ color: 0xd32f2f });
+  const matAnel = new THREE.MeshLambertMaterial({ color: 0xffffff });
+
+  [[-1.8, -2.0], [0.6, -2.0]].forEach(([cx, cz]) => {
+    const chamine = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 7.2, 16), matChamine);
+    chamine.position.set(cx, 3.6 + 0.18, cz);
+    chamine.castShadow = true;
     grupo.add(chamine);
+
+    // Anillo blanco de aviso
+    const anel = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.74, 1.1, 16), matAnel);
+    anel.position.set(cx, 5.0 + 0.18, cz);
+    grupo.add(anel);
+
+    // Boca superior de ventilación
+    const boca = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.2, 16), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+    boca.position.set(cx, 7.2 + 0.18, cz);
+    grupo.add(boca);
   });
+
+  // 4. Subestación transformadora eléctrica
+  const matTrafo = new THREE.MeshLambertMaterial({ color: 0x78909c });
+  [ [2.4, -0.6], [2.4, 1.3], [2.4, 2.5] ].forEach(([tx, tz]) => {
+    const trafo = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.5, 0.8), matTrafo);
+    trafo.position.set(tx, 0.75 + 0.18, tz);
+    grupo.add(trafo);
+
+    const aislador = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.12, 0.7, 6), new THREE.MeshLambertMaterial({ color: 0xb0bec5 }));
+    aislador.position.set(tx, 1.7 + 0.18, tz);
+    grupo.add(aislador);
+  });
+
+  // Torre metálica de alta tensión
+  const matTorre = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
+  const pilarTorre = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.18, 4.8, 4), matTorre);
+  pilarTorre.position.set(2.4, 2.4 + 0.18, -2.0);
+  grupo.add(pilarTorre);
+
+  const brazoTorre = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.14, 0.14), matTorre);
+  brazoTorre.position.set(2.4, 4.2 + 0.18, -2.0);
+  grupo.add(brazoTorre);
+
+  grupo.rotation.y = rot;
+  return grupo;
+}
+
+function criarMunicipalidad(rot) {
+  const grupo = new THREE.Group();
+  const tamanho = TAMANHO_CELULA * 3; // 12.0 (Huella 3x3 celdas)
+
+  // 1. Podio / Terraza de mármol cívico
+  const matPodio = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+  const podio = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.4, 0.5, tamanho - 0.4), matPodio);
+  podio.position.y = 0.25;
+  podio.receiveShadow = true;
+  grupo.add(podio);
+
+  // Escalinatas ceremoniales de acceso frontal
+  const matEscalinata = new THREE.MeshLambertMaterial({ color: 0xe0e0e0 });
+  [0.4, 0.25, 0.12].forEach((h, idx) => {
+    const escalon = new THREE.Mesh(new THREE.BoxGeometry(5.2 + idx * 0.4, 0.12, 1.2 + idx * 0.35), matEscalinata);
+    escalon.position.set(0, 0.06 + idx * 0.12, 5.1 - idx * 0.35);
+    escalon.receiveShadow = true;
+    grupo.add(escalon);
+  });
+
+  // 2. Cuerpo del edificio principal (Palacio de Gobierno)
+  const matParedes = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
+  const cuerpoPrincipal = new THREE.Mesh(new THREE.BoxGeometry(9.6, 5.0, 6.8), matParedes);
+  cuerpoPrincipal.position.set(0, 2.5 + 0.5, -0.6);
+  cuerpoPrincipal.castShadow = true;
+  grupo.add(cuerpoPrincipal);
+
+  // Cornisas decorativas
+  const matCornisa = new THREE.MeshLambertMaterial({ color: 0xd7ccc8 });
+  const cornisa1 = new THREE.Mesh(new THREE.BoxGeometry(10.0, 0.3, 7.2), matCornisa);
+  cornisa1.position.set(0, 5.1 + 0.5, -0.6);
+  grupo.add(cornisa1);
+
+  // 3. Pórtico clásico con 6 columnas jónicas/corintias
+  const matColumna = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const posXColumnas = [-3.8, -2.3, -0.8, 0.8, 2.3, 3.8];
+  posXColumnas.forEach(cx => {
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 4.8, 12), matColumna);
+    col.position.set(cx, 2.4 + 0.5, 3.2);
+    col.castShadow = true;
+    grupo.add(col);
+
+    const capitel = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.6), matCornisa);
+    capitel.position.set(cx, 4.8 + 0.5, 3.2);
+    grupo.add(capitel);
+  });
+
+  // Arquitrabe superior del pórtico frontal
+  const arquitrabe = new THREE.Mesh(new THREE.BoxGeometry(9.0, 0.4, 1.3), matCornisa);
+  arquitrabe.position.set(0, 5.1 + 0.5, 3.2);
+  grupo.add(arquitrabe);
+
+  // Frontón triangular clásico
+  const matFronton = new THREE.MeshLambertMaterial({ color: 0xefebe9 });
+  const fronton = new THREE.Mesh(new THREE.ConeGeometry(5.0, 1.6, 4), matFronton);
+  fronton.position.set(0, 5.9 + 0.5, 3.2);
+  fronton.rotation.y = Math.PI / 4;
+  fronton.scale.set(1.0, 1.0, 0.26);
+  grupo.add(fronton);
+
+  // Escudo municipal dorado en el frontón
+  const matEscudo = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+  const escudo = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 12), matEscudo);
+  escudo.position.set(0, 5.6 + 0.5, 3.42);
+  escudo.rotation.x = Math.PI / 2;
+  grupo.add(escudo);
+
+  // 4. Torre central del Reloj Municipal
+  const torreReloj = new THREE.Mesh(new THREE.BoxGeometry(2.8, 4.2, 2.8), matParedes);
+  torreReloj.position.set(0, 7.3 + 0.5, -0.6);
+  torreReloj.castShadow = true;
+  grupo.add(torreReloj);
+
+  // Reloj municipal en las 4 caras
+  const matReloj = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  [
+    [0, 8.2 + 0.5, 0.85, 0],
+    [0, 8.2 + 0.5, -2.05, Math.PI],
+    [-1.45, 8.2 + 0.5, -0.6, -Math.PI / 2],
+    [1.45, 8.2 + 0.5, -0.6, Math.PI / 2]
+  ].forEach(([rx, ry, rz, rotY]) => {
+    const esfera = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.04, 16), matReloj);
+    esfera.position.set(rx, ry, rz);
+    esfera.rotation.x = Math.PI / 2;
+    esfera.rotation.y = rotY;
+    grupo.add(esfera);
+  });
+
+  // Cúpula neoclásica de bronce / cobre verdoso
+  const matCupula = new THREE.MeshLambertMaterial({ color: 0x00796b });
+  const cupula = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2), matCupula);
+  cupula.position.set(0, 9.4 + 0.5, -0.6);
+  grupo.add(cupula);
+
+  // Mástil de bandera
+  const matAsta = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+  const asta = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.0, 6), matAsta);
+  asta.position.set(0, 11.2 + 0.5, -0.6);
+  grupo.add(asta);
+
+  // Bandera municipal de Katueté
+  const matBandera = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+  const bandera = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.02), matBandera);
+  bandera.position.set(0.48, 11.8 + 0.5, -0.6);
+  grupo.add(bandera);
+
+  // Puerta de entrada ceremonial
+  const matPuerta = new THREE.MeshLambertMaterial({ color: 0x4e342e });
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.8, 0.2), matPuerta);
+  puerta.position.set(0, 1.4 + 0.5, 2.82);
+  grupo.add(puerta);
 
   grupo.rotation.y = rot;
   return grupo;
@@ -811,8 +1092,14 @@ function criarCaixaDAgua() {
   return grupo;
 }
 
+function isQualquerEstrada(x, z) {
+  if (!celulaValida(x, z)) return false;
+  const tipo = estado.grade[z]?.[x]?.tipo;
+  return tipo === 'estrada' || tipo === 'estrada_empedrado' || tipo === 'estrada_terra';
+}
+
 function isEstrada(x, z) {
-  return celulaValida(x, z) && estado.grade[z]?.[x]?.tipo === 'estrada';
+  return isQualquerEstrada(x, z);
 }
 
 function criarEstradaMesh(gx, gz) {
@@ -824,10 +1111,10 @@ function criarEstradaMesh(gx, gz) {
   const midLen = w - cw * 2;// 3.2
 
   // Detección de calles vecinas ortogonales
-  const n = isEstrada(gx, gz - 1);
-  const s = isEstrada(gx, gz + 1);
-  const e = isEstrada(gx + 1, gz);
-  const wst = isEstrada(gx - 1, gz);
+  const n = isQualquerEstrada(gx, gz - 1);
+  const s = isQualquerEstrada(gx, gz + 1);
+  const e = isQualquerEstrada(gx + 1, gz);
+  const wst = isQualquerEstrada(gx - 1, gz);
 
   // 1. Asfalto base
   const geoAsfalto = new THREE.BoxGeometry(w, 0.12, w);
@@ -929,6 +1216,140 @@ function criarEstradaMesh(gx, gz) {
   return grupo;
 }
 
+function criarEstradaEmpedradoMesh(gx, gz) {
+  const grupo = new THREE.Group();
+  const w = TAMANHO_CELULA;
+  const hw = w / 2;
+  const cw = 0.35;
+  const hcw = cw / 2;
+  const midLen = w - cw * 2;
+
+  const n = isQualquerEstrada(gx, gz - 1);
+  const s = isQualquerEstrada(gx, gz + 1);
+  const e = isQualquerEstrada(gx + 1, gz);
+  const wst = isQualquerEstrada(gx - 1, gz);
+
+  // Base empedrada (piedra de adoquín)
+  const geoPedra = new THREE.BoxGeometry(w, 0.11, w);
+  const matPedra = new THREE.MeshLambertMaterial({ color: 0x546e7a });
+  const base = new THREE.Mesh(geoPedra, matPedra);
+  base.position.y = 0.055;
+  base.receiveShadow = true;
+  grupo.add(base);
+
+  // Adoquines en relieve
+  const matAdoquines = new THREE.MeshLambertMaterial({ color: 0x455a64 });
+  for (let ix = -1.2; ix <= 1.2; ix += 1.2) {
+    for (let iz = -1.2; iz <= 1.2; iz += 1.2) {
+      const bloq = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.02, 0.95), matAdoquines);
+      bloq.position.set(ix, 0.115, iz);
+      grupo.add(bloq);
+    }
+  }
+
+  // Bordillos de piedra rústica
+  const matCordao = new THREE.MeshLambertMaterial({ color: 0x78909c });
+  const geoCanto = new THREE.BoxGeometry(cw, 0.13, cw);
+  [[-hw + hcw, -hw + hcw], [hw - hcw, -hw + hcw], [-hw + hcw, hw - hcw], [hw - hcw, hw - hcw]].forEach(([px, pz]) => {
+    const c = new THREE.Mesh(geoCanto, matCordao);
+    c.position.set(px, 0.065, pz);
+    grupo.add(c);
+  });
+
+  if (!n) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.13, cw), matCordao);
+    b.position.set(0, 0.065, -hw + hcw);
+    grupo.add(b);
+  }
+  if (!s) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.13, cw), matCordao);
+    b.position.set(0, 0.065, hw - hcw);
+    grupo.add(b);
+  }
+  if (!wst) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.13, midLen), matCordao);
+    b.position.set(-hw + hcw, 0.065, 0);
+    grupo.add(b);
+  }
+  if (!e) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.13, midLen), matCordao);
+    b.position.set(hw - hcw, 0.065, 0);
+    grupo.add(b);
+  }
+
+  const { x, z } = gradeParaMundo(gx, gz);
+  grupo.position.set(x, 0, z);
+  return grupo;
+}
+
+function criarEstradaTerraMesh(gx, gz) {
+  const grupo = new THREE.Group();
+  const w = TAMANHO_CELULA;
+  const hw = w / 2;
+
+  const n = isQualquerEstrada(gx, gz - 1);
+  const s = isQualquerEstrada(gx, gz + 1);
+  const e = isQualquerEstrada(gx + 1, gz);
+  const wst = isQualquerEstrada(gx - 1, gz);
+
+  // Capa base de tierra rojiza / arcilla compactada
+  const geoTerra = new THREE.BoxGeometry(w, 0.09, w);
+  const matTerra = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+  const terra = new THREE.Mesh(geoTerra, matTerra);
+  terra.position.y = 0.045;
+  terra.receiveShadow = true;
+  grupo.add(terra);
+
+  // Huellas de rodadura de vehículos (marcas oscuras)
+  const matHuella = new THREE.MeshLambertMaterial({ color: 0x6d4c41 });
+  if ((e || wst) && !n && !s) {
+    [-0.6, 0.6].forEach(oz => {
+      const h = new THREE.Mesh(new THREE.BoxGeometry(w, 0.015, 0.35), matHuella);
+      h.position.set(0, 0.095, oz);
+      grupo.add(h);
+    });
+  } else if ((n || s) && !e && !wst) {
+    [-0.6, 0.6].forEach(ox => {
+      const h = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.015, w), matHuella);
+      h.position.set(ox, 0.095, 0);
+      grupo.add(h);
+    });
+  } else {
+    [[-0.8, -0.8], [0.8, -0.6], [-0.5, 0.7], [0.7, 0.8]].forEach(([ox, oz]) => {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.012, 0.7), matHuella);
+      p.position.set(ox, 0.095, oz);
+      grupo.add(p);
+    });
+  }
+
+  // Pequeñas bermas de vegetación en los costados sin empalme
+  const matMato = new THREE.MeshLambertMaterial({ color: 0x33691e });
+  if (!n) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 0.08, 0.3), matMato);
+    m.position.set(0, 0.07, -hw + 0.2);
+    grupo.add(m);
+  }
+  if (!s) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 0.08, 0.3), matMato);
+    m.position.set(0, 0.07, hw - 0.2);
+    grupo.add(m);
+  }
+  if (!wst) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, w * 0.9), matMato);
+    m.position.set(-hw + 0.2, 0.07, 0);
+    grupo.add(m);
+  }
+  if (!e) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, w * 0.9), matMato);
+    m.position.set(hw - 0.2, 0.07, 0);
+    grupo.add(m);
+  }
+
+  const { x, z } = gradeParaMundo(gx, gz);
+  grupo.position.set(x, 0, z);
+  return grupo;
+}
+
 /* ============================================================
    8. GESTIÓN DEL MAPA Y RENDERIZADO DE CHUNKS
    ============================================================ */
@@ -972,7 +1393,7 @@ function criarEtiquetaEdificio(tipo, inquilino) {
         textoPrincipal = '⚡ Usina';
         colorFondo = 'rgba(38, 50, 56, 0.92)';
         colorBorde = '#b0bec5';
-        alturaY = 8.5;
+        alturaY = 9.2;
         break;
       case 'caixaDAgua':
         textoPrincipal = '💧 Depósito';
@@ -984,7 +1405,13 @@ function criarEtiquetaEdificio(tipo, inquilino) {
         textoPrincipal = '🌳 Parque';
         colorFondo = 'rgba(46, 125, 50, 0.9)';
         colorBorde = '#a5d6a7';
-        alturaY = 4.2;
+        alturaY = 4.8;
+        break;
+      case 'municipalidad':
+        textoPrincipal = '🏛️ Alcaldía';
+        colorFondo = 'rgba(21, 67, 96, 0.94)';
+        colorBorde = '#ffd700';
+        alturaY = 14.5;
         break;
       default:
         return null;
@@ -1027,10 +1454,15 @@ function criarEtiquetaEdificio(tipo, inquilino) {
 
 function criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino = null, autor = 'Municipio') {
   let mesh = null;
+  const dims = obtenerDimensionesObjeto(tipo);
   const { x, z } = gradeParaMundo(gx, gz);
+  const centroX = x + ((dims.w - 1) * TAMANHO_CELULA) / 2;
+  const centroZ = z + ((dims.h - 1) * TAMANHO_CELULA) / 2;
 
   switch (tipo) {
     case 'estrada': mesh = criarEstradaMesh(gx, gz); break;
+    case 'estrada_empedrado': mesh = criarEstradaEmpedradoMesh(gx, gz); break;
+    case 'estrada_terra': mesh = criarEstradaTerraMesh(gx, gz); break;
     case 'casa': mesh = criarCasa(rotRad); break;
     case 'sobrado': mesh = criarSobrado(rotRad); break;
     case 'predio': mesh = criarPredio(rotRad); break;
@@ -1039,11 +1471,14 @@ function criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino = null, autor = 'Muni
     case 'parque': mesh = criarParque(); break;
     case 'usina': mesh = criarUsina(rotRad); break;
     case 'caixaDAgua': mesh = criarCaixaDAgua(); break;
+    case 'municipalidad': mesh = criarMunicipalidad(rotRad); break;
     default: return null;
   }
 
-  if (tipo !== 'estrada' && mesh) {
-    mesh.position.set(x, 0, z);
+  const esCalle = ['estrada', 'estrada_empedrado', 'estrada_terra'].includes(tipo);
+
+  if (!esCalle && mesh) {
+    mesh.position.set(centroX, 0, centroZ);
     const etiqueta = criarEtiquetaEdificio(tipo, inquilino);
     if (etiqueta) {
       mesh.add(etiqueta);
@@ -1051,7 +1486,7 @@ function criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino = null, autor = 'Muni
   }
 
   if (mesh) {
-    mesh.userData = { tipo, gx, gz, rot: (rotRad * 180) / Math.PI, inquilino, autor };
+    mesh.userData = { tipo, gx, gz, rot: (rotRad * 180) / Math.PI, inquilino, autor, w: dims.w, h: dims.h };
   }
   return mesh;
 }
@@ -1070,7 +1505,7 @@ function carregarChunk(cx, cz) {
   for (let z = startZ; z < endZ; z++) {
     for (let x = startX; x < endX; x++) {
       const item = estado.grade[z]?.[x];
-      if (item) {
+      if (item && !item.esHijo) {
         const rotRad = ((item.rot || 0) * Math.PI) / 180;
         const mesh = criarMeshParaTipo(item.tipo, rotRad, x, z, item.inquilino, item.autor);
         if (mesh) {
@@ -1168,8 +1603,15 @@ function procesarFilaChunks() {
 
 function actualizarMeshCelda(gx, gz) {
   if (!celulaValida(gx, gz)) return;
-  const celda = estado.grade[gz]?.[gx];
+  let celda = estado.grade[gz]?.[gx];
   if (!celda) return;
+
+  if (celda.esHijo) {
+    gx = celda.rootX;
+    gz = celda.rootZ;
+    celda = estado.grade[gz]?.[gx];
+    if (!celda) return;
+  }
 
   const { cx, cz } = celulaParaChunk(gx, gz);
   const ch = chunkManager.chunksCarregados.get(obtenerIdChunk(cx, cz));
@@ -1186,12 +1628,24 @@ function actualizarMeshCelda(gx, gz) {
   }
 }
 
+function verificarEspacioDisponible(gx, gz, w = 1, h = 1) {
+  for (let dz = 0; dz < h; dz++) {
+    for (let dx = 0; dx < w; dx++) {
+      const cx = gx + dx;
+      const cz = gz + dz;
+      if (!celulaValida(cx, cz)) return false;
+      if (estado.grade[cz]?.[cx] !== null) return false;
+    }
+  }
+  return true;
+}
+
 function actualizarVecinosEstrada(gx, gz) {
   const deltas = [[0, -1], [0, 1], [-1, 0], [1, 0]];
   deltas.forEach(([dx, dz]) => {
     const nx = gx + dx;
     const nz = gz + dz;
-    if (isEstrada(nx, nz)) {
+    if (isQualquerEstrada(nx, nz)) {
       actualizarMeshCelda(nx, nz);
     }
   });
@@ -1199,10 +1653,45 @@ function actualizarVecinosEstrada(gx, gz) {
 
 function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 'Municipio') {
   if (!celulaValida(gx, gz)) return;
-  eliminarObjetoLocal(gx, gz);
+  const dims = obtenerDimensionesObjeto(tipo);
+  const w = dims.w;
+  const h = dims.h;
+
+  // Si ya existía algún elemento en el área de la huella, retirarlo
+  for (let dz = 0; dz < h; dz++) {
+    for (let dx = 0; dx < w; dx++) {
+      if (estado.grade[gz + dz]?.[gx + dx]) {
+        eliminarObjetoLocal(gx + dx, gz + dz);
+      }
+    }
+  }
 
   const rotRad = (rot * Math.PI) / 180;
-  estado.grade[gz][gx] = { tipo, rot, mesh: null, inquilino, autor };
+
+  // 1. Registrar celda raíz (contiene datos completos y referencia al mesh)
+  estado.grade[gz][gx] = {
+    tipo,
+    rot,
+    mesh: null,
+    inquilino,
+    autor,
+    w,
+    h,
+    esRaiz: true
+  };
+
+  // 2. Registrar celdas hijas vinculadas a la raíz para bloquear el espacio
+  for (let dz = 0; dz < h; dz++) {
+    for (let dx = 0; dx < w; dx++) {
+      if (dx === 0 && dz === 0) continue;
+      estado.grade[gz + dz][gx + dx] = {
+        tipo,
+        rootX: gx,
+        rootZ: gz,
+        esHijo: true
+      };
+    }
+  }
 
   const { cx, cz } = celulaParaChunk(gx, gz);
   const ch = chunkManager.chunksCarregados.get(obtenerIdChunk(cx, cz));
@@ -1214,24 +1703,44 @@ function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 
     }
   }
 
-  // Si se coloca una calle, actualizar automáticamente las conexiones de sus vecinas
-  if (tipo === 'estrada') {
+  // Si se coloca cualquier tipo de calle, actualizar automáticamente las conexiones de sus vecinas
+  if (isQualquerEstrada(gx, gz)) {
     actualizarVecinosEstrada(gx, gz);
   }
 }
 
 function eliminarObjetoLocal(gx, gz) {
   if (!celulaValida(gx, gz)) return;
-  const celda = estado.grade[gz]?.[gx];
-  if (celda) {
-    const eraEstrada = celda.tipo === 'estrada';
-    if (celda.mesh && celda.mesh.parent) {
-      celda.mesh.parent.remove(celda.mesh);
+  let celda = estado.grade[gz]?.[gx];
+  if (!celda) return;
+
+  // Si se hizo clic en una celda hija de un edificio multi-celda, redirigir a la celda raíz
+  if (celda.esHijo) {
+    gx = celda.rootX;
+    gz = celda.rootZ;
+    celda = estado.grade[gz]?.[gx];
+    if (!celda) return;
+  }
+
+  const w = celda.w || 1;
+  const h = celda.h || 1;
+  const eraEstrada = isQualquerEstrada(gx, gz);
+
+  if (celda.mesh && celda.mesh.parent) {
+    celda.mesh.parent.remove(celda.mesh);
+  }
+
+  // Desocupar todas las celdas cubiertas por la huella del edificio
+  for (let dz = 0; dz < h; dz++) {
+    for (let dx = 0; dx < w; dx++) {
+      if (celulaValida(gx + dx, gz + dz)) {
+        estado.grade[gz + dz][gx + dx] = null;
+      }
     }
-    estado.grade[gz][gx] = null;
-    if (eraEstrada) {
-      actualizarVecinosEstrada(gx, gz);
-    }
+  }
+
+  if (eraEstrada) {
+    actualizarVecinosEstrada(gx, gz);
   }
 }
 
@@ -1408,11 +1917,11 @@ function actualizarBadgeBarrioActual(forzar = false) {
     badge.classList.remove('oculto');
     badge.classList.add('visible');
 
-    // Desvanecer suavemente después de 3 segundos con fade out
+    // Desvanecer suavemente después de pocos segundos con fade out
     timerOcultarBadgeBarrio = setTimeout(() => {
       badge.classList.remove('visible');
       badge.classList.add('oculto');
-    }, 3000);
+    }, 2000);
   } else {
     // Si sale a zona exterior no asignada a ningún barrio, fade out
     badge.classList.remove('visible');
@@ -1429,11 +1938,51 @@ function cerrarModalBarrio() {
   if (controles) controles.enabled = true;
 }
 
+function sincronizarInputsCoordsBarrio(x1, z1, ancho, prof, actualizarInputs = true) {
+  x1 = Math.max(0, Math.min(TAMANHO_GRADE - 1, parseInt(x1, 10) || 0));
+  z1 = Math.max(0, Math.min(TAMANHO_GRADE - 1, parseInt(z1, 10) || 0));
+  ancho = Math.max(1, Math.min(TAMANHO_GRADE - x1, parseInt(ancho, 10) || 1));
+  prof = Math.max(1, Math.min(TAMANHO_GRADE - z1, parseInt(prof, 10) || 1));
+
+  const x2 = x1 + ancho - 1;
+  const z2 = z1 + prof - 1;
+
+  if (actualizarInputs) {
+    const inX1 = document.getElementById('campo-barrio-x1');
+    const inZ1 = document.getElementById('campo-barrio-z1');
+    const inAncho = document.getElementById('campo-barrio-ancho');
+    const inProf = document.getElementById('campo-barrio-prof');
+    if (inX1) inX1.value = x1;
+    if (inZ1) inZ1.value = z1;
+    if (inAncho) inAncho.value = ancho;
+    if (inProf) inProf.value = prof;
+  }
+
+  const txtResumen = document.getElementById('resumen-total-celdas');
+  const infoCoords = document.getElementById('info-coords-barrio');
+  const modal = document.getElementById('modal-barrio');
+
+  if (txtResumen) {
+    txtResumen.textContent = `Total: ${ancho * prof} celdas (${ancho} × ${prof})`;
+  }
+  if (infoCoords) {
+    infoCoords.textContent = `Sector: (${x1}, ${z1}) a (${x2}, ${z2}) — ${ancho * prof} celdas`;
+  }
+
+  if (modal) {
+    modal.dataset.minGx = x1;
+    modal.dataset.minGz = z1;
+    modal.dataset.maxGx = x2;
+    modal.dataset.maxGz = z2;
+  }
+
+  actualizarPreviewSeleccionBairro({ gx: x1, gz: z1 }, { gx: x2, gz: z2 });
+}
+
 function abrirModalEditarBarrio(b) {
   if (!b) return;
   const modal = document.getElementById('modal-barrio');
   const titulo = document.getElementById('titulo-modal-barrio');
-  const infoCoords = document.getElementById('info-coords-barrio');
   const inputNome = document.getElementById('campo-nombre-barrio');
   const selectTipo = document.getElementById('campo-tipo-barrio');
   const btnEliminar = document.getElementById('btn-eliminar-barrio');
@@ -1441,7 +1990,7 @@ function abrirModalEditarBarrio(b) {
   if (!modal) return;
 
   estado.barrioEditandoId = b.id;
-  if (titulo) titulo.textContent = '✏️ Editar Barrio';
+  if (titulo) titulo.textContent = '✏️ Editar Barrio y Coordenadas';
 
   const minGx = Math.min(b.x1, b.x2);
   const maxGx = Math.max(b.x1, b.x2);
@@ -1450,9 +1999,7 @@ function abrirModalEditarBarrio(b) {
   const ancho = maxGx - minGx + 1;
   const prof = maxGz - minGz + 1;
 
-  if (infoCoords) {
-    infoCoords.textContent = `Sector: (${minGx}, ${minGz}) a (${maxGx}, ${maxGz}) — ${ancho} × ${prof} celdas`;
-  }
+  sincronizarInputsCoordsBarrio(minGx, minGz, ancho, prof, true);
 
   if (inputNome) inputNome.value = b.nome;
   if (selectTipo) selectTipo.value = b.tipo || 'Residencial';
@@ -1463,11 +2010,6 @@ function abrirModalEditarBarrio(b) {
   });
 
   if (btnEliminar) btnEliminar.style.display = 'block';
-
-  modal.dataset.minGx = minGx;
-  modal.dataset.maxGx = maxGx;
-  modal.dataset.minGz = minGz;
-  modal.dataset.maxGz = maxGz;
 
   modal.style.display = 'flex';
   if (controles) controles.enabled = false;
@@ -1485,7 +2027,6 @@ function abrirModalCrearBarrio(g1, g2) {
 
   const modal = document.getElementById('modal-barrio');
   const titulo = document.getElementById('titulo-modal-barrio');
-  const infoCoords = document.getElementById('info-coords-barrio');
   const inputNome = document.getElementById('campo-nombre-barrio');
   const selectTipo = document.getElementById('campo-tipo-barrio');
   const btnEliminar = document.getElementById('btn-eliminar-barrio');
@@ -1494,9 +2035,8 @@ function abrirModalCrearBarrio(g1, g2) {
 
   const anchoCeldas = maxGx - minGx + 1;
   const profCeldas = maxGz - minGz + 1;
-  if (infoCoords) {
-    infoCoords.textContent = `Región seleccionada: (${minGx}, ${minGz}) a (${maxGx}, ${maxGz}) — ${anchoCeldas} × ${profCeldas} celdas`;
-  }
+
+  sincronizarInputsCoordsBarrio(minGx, minGz, anchoCeldas, profCeldas, true);
 
   const barrioExistente = estado.bairros.find(b => 
     (minGx >= Math.min(b.x1, b.x2) && maxGx <= Math.max(b.x1, b.x2) && minGz >= Math.min(b.z1, b.z2) && maxGz <= Math.max(b.z1, b.z2)) ||
@@ -1505,7 +2045,7 @@ function abrirModalCrearBarrio(g1, g2) {
 
   if (barrioExistente) {
     estado.barrioEditandoId = barrioExistente.id;
-    if (titulo) titulo.textContent = '✏️ Editar Barrio';
+    if (titulo) titulo.textContent = '✏️ Editar Barrio y Coordenadas';
     if (inputNome) inputNome.value = barrioExistente.nome;
     if (selectTipo) selectTipo.value = barrioExistente.tipo || 'Residencial';
     colorBarrioSeleccionado = barrioExistente.cor || '#2d9e42';
@@ -1522,11 +2062,6 @@ function abrirModalCrearBarrio(g1, g2) {
   document.querySelectorAll('.btn-cor-bairro').forEach(b => {
     b.classList.toggle('activa', b.dataset.cor === colorBarrioSeleccionado);
   });
-
-  modal.dataset.minGx = minGx;
-  modal.dataset.maxGx = maxGx;
-  modal.dataset.minGz = minGz;
-  modal.dataset.maxGz = maxGz;
 
   modal.style.display = 'flex';
   if (controles) controles.enabled = false;
@@ -1684,9 +2219,13 @@ function configurarEventosInteraccion() {
       pointerDownY = e.clientY;
       actualizarCoordenadasMouse(e);
       const pt = obtenerInterseccionChao();
-      if (pt && estado.ferramentaAtiva === 'estrada') {
-        estado.arrastandoEstrada = true;
-        estado.inicioArrasto = mundoParaGrade(pt.x, pt.z);
+      if (pt && ['estrada', 'estrada_empedrado', 'estrada_terra'].includes(estado.ferramentaAtiva)) {
+        if (estado.ferramentaAtiva === 'estrada' && !jugadorLocal.esAdmin) {
+          mostrarNotificacion('🔒 La Calle Asfaltada es exclusiva del Alcalde.');
+        } else {
+          estado.arrastandoEstrada = true;
+          estado.inicioArrasto = mundoParaGrade(pt.x, pt.z);
+        }
       }
     }
   });
@@ -1704,11 +2243,18 @@ function configurarEventosInteraccion() {
     if (estado.arrastandoEstrada && estado.inicioArrasto && pt) {
       const destino = mundoParaGrade(pt.x, pt.z);
       const camino = obtenerCaminoL(estado.inicioArrasto, destino);
+      const tipoCalle = estado.ferramentaAtiva;
+      const costoUnidad = jugadorLocal.esAdmin ? 0 : (COSTOS_CONSTRUCCION[tipoCalle] || 0);
+
       camino.forEach(c => {
         if (celulaValida(c.gx, c.gz) && estado.grade[c.gz][c.gx] === null) {
-          instanciarObjetoLocal('estrada', c.gx, c.gz, 0, null, jugadorLocal.nombre);
+          if (jugadorLocal.esAdmin || jugadorLocal.oikos >= costoUnidad) {
+            if (!jugadorLocal.esAdmin) jugadorLocal.oikos -= costoUnidad;
+            instanciarObjetoLocal(tipoCalle, c.gx, c.gz, 0, null, jugadorLocal.esAdmin ? 'Municipio (Alcalde)' : jugadorLocal.nombre);
+          }
         }
       });
+      actualizarHUD();
       tocarSonido('construir');
       limparPreviewLinhaEstrada();
       estado.arrastandoEstrada = false;
@@ -1734,6 +2280,10 @@ function configurarEventosInteraccion() {
     if (e.key === 'r' || e.key === 'R') {
       rotarHerramienta();
     } else if (e.key === 'Escape') {
+      if (estado.objetoMoviendo) {
+        cancelarMoverObjeto();
+      }
+      cerrarModalBarrio();
       seleccionarHerramienta('ponteiro');
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       if (!jugadorLocal.esAdmin) {
@@ -1881,10 +2431,18 @@ function configurarEventosInteraccion() {
     const selectTipo = document.getElementById('campo-tipo-barrio');
     const nome = inputNome ? inputNome.value.trim() : 'Nuevo Barrio';
     const tipo = selectTipo ? selectTipo.value : 'Residencial';
-    const minGx = parseInt(modalBarrio.dataset.minGx, 10);
-    const maxGx = parseInt(modalBarrio.dataset.maxGx, 10);
-    const minGz = parseInt(modalBarrio.dataset.minGz, 10);
-    const maxGz = parseInt(modalBarrio.dataset.maxGz, 10);
+
+    const inX1 = document.getElementById('campo-barrio-x1');
+    const inZ1 = document.getElementById('campo-barrio-z1');
+    const inAncho = document.getElementById('campo-barrio-ancho');
+    const inProf = document.getElementById('campo-barrio-prof');
+
+    const minGx = Math.max(0, parseInt(inX1 ? inX1.value : modalBarrio?.dataset.minGx, 10) || 0);
+    const minGz = Math.max(0, parseInt(inZ1 ? inZ1.value : modalBarrio?.dataset.minGz, 10) || 0);
+    const ancho = Math.max(1, parseInt(inAncho ? inAncho.value : '1', 10) || 1);
+    const prof = Math.max(1, parseInt(inProf ? inProf.value : '1', 10) || 1);
+    const maxGx = Math.min(TAMANHO_GRADE - 1, minGx + ancho - 1);
+    const maxGz = Math.min(TAMANHO_GRADE - 1, minGz + prof - 1);
 
     if (!nome) {
       mostrarNotificacion('⚠️ Introduce un nombre válido para el barrio.');
@@ -1897,6 +2455,10 @@ function configurarEventosInteraccion() {
         estado.bairros[idx].nome = nome;
         estado.bairros[idx].tipo = tipo;
         estado.bairros[idx].cor = colorBarrioSeleccionado;
+        estado.bairros[idx].x1 = minGx;
+        estado.bairros[idx].x2 = maxGx;
+        estado.bairros[idx].z1 = minGz;
+        estado.bairros[idx].z2 = maxGz;
       }
     } else {
       estado.bairros.push({
@@ -1922,7 +2484,18 @@ function configurarEventosInteraccion() {
 
     cerrarModalBarrio();
     tocarSonido('construir');
-    mostrarNotificacion(`🏷️ Barrio "${nome}" guardado exitosamente.`);
+    mostrarNotificacion(`🏷️ Barrio "${nome}" (${ancho}×${prof} celdas) guardado exitosamente.`);
+  });
+
+  // Escuchar cambios numéricos en vivo para previsualizar el barrio
+  ['campo-barrio-x1', 'campo-barrio-z1', 'campo-barrio-ancho', 'campo-barrio-prof'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', () => {
+      const x1 = parseInt(document.getElementById('campo-barrio-x1')?.value, 10) || 0;
+      const z1 = parseInt(document.getElementById('campo-barrio-z1')?.value, 10) || 0;
+      const ancho = parseInt(document.getElementById('campo-barrio-ancho')?.value, 10) || 1;
+      const prof = parseInt(document.getElementById('campo-barrio-prof')?.value, 10) || 1;
+      sincronizarInputsCoordsBarrio(x1, z1, ancho, prof, false);
+    });
   });
 
   // Modal de Barrios: Eliminar Barrio
@@ -1961,8 +2534,14 @@ function configurarEventosInteraccion() {
 
   // Selección de Item del Catálogo de Construcción
   document.querySelectorAll('.btn-ferramenta').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
       const tipo = btn.dataset.ferramenta;
+      if (btn.dataset.alcaldeOnly === 'true' && !jugadorLocal.esAdmin) {
+        e.stopPropagation();
+        mostrarNotificacion('🔒 Esta construcción está reservada exclusivamente para el Alcalde.');
+        tocarSonido('error');
+        return;
+      }
       seleccionarHerramienta(tipo);
       // Cierra el menú al elegir para ver el mapa 3D libre
       if (menuConstruccion) menuConstruccion.style.display = 'none';
@@ -2020,6 +2599,29 @@ function procesarClicEnGrilla(gx, gz) {
     return;
   }
 
+  if (ferr === 'mover') {
+    if (!estado.objetoMoviendo) {
+      estado.ferramentaAtiva = 'ponteiro';
+      return;
+    }
+    const o = estado.objetoMoviendo;
+    if (!verificarEspacioDisponible(gx, gz, o.w, o.h)) {
+      mostrarNotificacion(`⚠️ Terreno ocupado o espacio insuficiente para huella de (${o.w}×${o.h}).`);
+      tocarSonido('error');
+      return;
+    }
+    instanciarObjetoLocal(o.tipo, gx, gz, o.rot, o.inquilino, o.autor);
+    estado.objetoMoviendo = null;
+    estado.ferramentaAtiva = 'ponteiro';
+    limparFantasma();
+    desenharMiniMapa();
+    guardarCiudadEnStorage(false);
+    tocarSonido('construir');
+    mostrarNotificacion(`✅ Construcción trasladada exitosamente a (${gx}, ${gz}).`);
+    mostrarDetallesCelula(gx, gz);
+    return;
+  }
+
   if (ferr === 'demolir') {
     if (!jugadorLocal.esAdmin) {
       mostrarNotificacion('🔒 Opción de demolición exclusiva del Alcalde.');
@@ -2054,15 +2656,24 @@ function procesarClicEnGrilla(gx, gz) {
       abrirModalCrearBarrio(p1, p2);
     }
   } else {
-    const costo = jugadorLocal.esAdmin ? 0 : (COSTOS_CONSTRUCCION[ferr] || 0);
-    if (!jugadorLocal.esAdmin && jugadorLocal.oikos < costo) {
-      mostrarNotificacion(`❌ Saldo insuficiente (${costo} Oikos necesarios).`);
+    // Verificación de construcciones reservadas al Alcalde
+    if (CONSTRUCCIONES_EXCLUSIVAS_ALCALDE.includes(ferr) && !jugadorLocal.esAdmin) {
+      mostrarNotificacion('🔒 Esta construcción está reservada exclusivamente para el Alcalde.');
       tocarSonido('error');
       return;
     }
 
-    if (estado.grade[gz][gx] !== null) {
-      mostrarNotificacion('⚠️ Terreno ya ocupado.');
+    const dims = obtenerDimensionesObjeto(ferr);
+    if (!verificarEspacioDisponible(gx, gz, dims.w, dims.h)) {
+      mostrarNotificacion(`⚠️ Terreno ocupado o espacio insuficiente para huella de (${dims.w}×${dims.h}).`);
+      tocarSonido('error');
+      return;
+    }
+
+    const costo = jugadorLocal.esAdmin ? 0 : (COSTOS_CONSTRUCCION[ferr] || 0);
+    if (!jugadorLocal.esAdmin && jugadorLocal.oikos < costo) {
+      mostrarNotificacion(`❌ Saldo insuficiente (${costo} Oikos necesarios).`);
+      tocarSonido('error');
       return;
     }
 
@@ -2199,7 +2810,7 @@ function guardarCiudadEnStorage(notificar = true) {
   for (let z = 0; z < TAMANHO_GRADE; z++) {
     for (let x = 0; x < TAMANHO_GRADE; x++) {
       const c = estado.grade[z][x];
-      if (c) {
+      if (c && !c.esHijo) {
         guardado.mapa.push({ x, z, tipo: c.tipo, rot: c.rot, inquilino: c.inquilino, autor: c.autor });
       }
     }
@@ -2251,20 +2862,106 @@ function actualizarDockActivo(idBoton) {
   if (btn) btn.classList.add('activo');
 }
 
-function mostrarDetallesCelula(gx, gz) {
+function mejorarCalleLocal(gx, gz, nuevoTipo, costo) {
+  if (!jugadorLocal.uid) {
+    mostrarNotificacion('🔒 Debes iniciar sesión para mejorar calles.');
+    return;
+  }
   const celda = estado.grade[gz]?.[gx];
+  if (!celda) return;
+
+  if (!jugadorLocal.esAdmin && jugadorLocal.oikos < costo) {
+    mostrarNotificacion(`❌ Saldo insuficiente (${costo} Oikos necesarios).`);
+    tocarSonido('error');
+    return;
+  }
+
+  if (!jugadorLocal.esAdmin) {
+    jugadorLocal.oikos -= costo;
+    actualizarHUD();
+  }
+
+  celda.tipo = nuevoTipo;
+  actualizarMeshCelda(gx, gz);
+  actualizarVecinosEstrada(gx, gz);
+  desenharMiniMapa();
+  tocarSonido('construir');
+  guardarCiudadEnStorage(false);
+
+  const nombreTipo = nuevoTipo === 'estrada_empedrado' ? 'Calle Empedrada' : 'Calle Asfaltada';
+  mostrarNotificacion(`✨ ¡Vía mejorada con éxito a ${nombreTipo}!`);
+  mostrarDetallesCelula(gx, gz);
+}
+
+function iniciarMoverObjeto(gx, gz) {
+  if (!jugadorLocal.esAdmin) {
+    mostrarNotificacion('🔒 Solo el Alcalde puede mover construcciones.');
+    return;
+  }
+  let celda = estado.grade[gz]?.[gx];
+  if (!celda) return;
+
+  if (celda.esHijo) {
+    gx = celda.rootX;
+    gz = celda.rootZ;
+    celda = estado.grade[gz]?.[gx];
+    if (!celda) return;
+  }
+
+  const dims = obtenerDimensionesObjeto(celda.tipo);
+  estado.objetoMoviendo = {
+    tipo: celda.tipo,
+    rot: celda.rot || 0,
+    inquilino: celda.inquilino,
+    autor: celda.autor,
+    w: dims.w,
+    h: dims.h,
+    origenGx: gx,
+    origenGz: gz
+  };
+
+  // Retirar temporalmente de la grilla
+  eliminarObjetoLocal(gx, gz);
+
+  // Cerrar tarjeta de inspección y activar modo mover
+  const card = document.getElementById('card-inspeccion');
+  if (card) card.style.display = 'none';
+
+  estado.ferramentaAtiva = 'mover';
+  actualizarPreviewFantasma(gx, gz);
+  tocarSonido('monedas');
+  mostrarNotificacion(`🔄 Modo Mover: Haz clic en el nuevo terreno libre para reubicar la construcción (ESC para cancelar).`);
+}
+
+function cancelarMoverObjeto() {
+  if (!estado.objetoMoviendo) return;
+  const o = estado.objetoMoviendo;
+  instanciarObjetoLocal(o.tipo, o.origenGx, o.origenGz, o.rot, o.inquilino, o.autor);
+  estado.objetoMoviendo = null;
+  estado.ferramentaAtiva = 'ponteiro';
+  limparFantasma();
+  desenharMiniMapa();
+  mostrarNotificacion('❌ Movimiento cancelado. Construcción restaurada a su lugar original.');
+}
+
+function mostrarDetallesCelula(gx, gz) {
+  let celda = estado.grade[gz]?.[gx];
   const card = document.getElementById('card-inspeccion');
   const titulo = document.getElementById('card-titulo-edificio');
   const detalles = document.getElementById('card-detalles-edificio');
   const zonaAcciones = document.getElementById('zona-acciones-inmueble');
   const btnAlquilar = document.getElementById('btn-alquilar-casa');
   const btnDesalojar = document.getElementById('btn-desalojar-casa');
+  const btnUpgrade = document.getElementById('btn-upgrade-calle');
+  const btnMover = document.getElementById('btn-mover-edificio');
 
   if (!card) return;
 
   zonaAcciones.style.display = 'none';
   btnAlquilar.style.display = 'none';
   btnDesalojar.style.display = 'none';
+  if (btnUpgrade) btnUpgrade.style.display = 'none';
+  if (btnMover) btnMover.style.display = 'none';
 
   const barrio = obtenerBarrioEn(gx, gz);
   const infoBarrio = barrio 
@@ -2286,18 +2983,44 @@ function mostrarDetallesCelula(gx, gz) {
     return;
   }
 
+  // Si es celda hija de un edificio multi-celda, redirigir a la celda raíz
+  if (celda.esHijo) {
+    gx = celda.rootX;
+    gz = celda.rootZ;
+    celda = estado.grade[gz]?.[gx];
+    if (!celda) return;
+  }
+
   const esVivienda = ['casa', 'sobrado', 'predio'].includes(celda.tipo);
+  const esCalle = isQualquerEstrada(gx, gz);
   const estadoAlquiler = celda.inquilino
     ? `<span style="color:#ffb74d">Inquilino: <strong>${celda.inquilino}</strong></span>`
     : `<span style="color:#81c784">Disponible para Alquiler</span>`;
 
-  titulo.textContent = `${celda.tipo === 'casa' ? '🏠 Casa' : celda.tipo === 'sobrado' ? '🏡 Sobrado' : celda.tipo === 'predio' ? '🏢 Edificio' : celda.tipo === 'estrada' ? '🛣️ Calle' : celda.tipo.toUpperCase()}`;
-  
+  let nombreTipo = celda.tipo.toUpperCase();
+  if (celda.tipo === 'casa') nombreTipo = '🏠 Casa Familiar';
+  else if (celda.tipo === 'sobrado') nombreTipo = '🏡 Sobrado Duplex';
+  else if (celda.tipo === 'predio') nombreTipo = '🏢 Edificio Departamental';
+  else if (celda.tipo === 'loja') nombreTipo = '🏪 Tienda Comercial';
+  else if (celda.tipo === 'posto') nombreTipo = '⛽ Estación de Servicios';
+  else if (celda.tipo === 'parque') nombreTipo = '🌳 Parque Ecológico (3x3)';
+  else if (celda.tipo === 'usina') nombreTipo = '⚡ Usina Eléctrica (2x2)';
+  else if (celda.tipo === 'caixaDAgua') nombreTipo = '💧 Tanque de Agua';
+  else if (celda.tipo === 'municipalidad') nombreTipo = '🏛️ Palacio Municipal (3x3)';
+  else if (celda.tipo === 'estrada_terra') nombreTipo = '🚜 Calle de Tierra';
+  else if (celda.tipo === 'estrada_empedrado') nombreTipo = '🧱 Calle Empedrada';
+  else if (celda.tipo === 'estrada') nombreTipo = '🛣️ Calle Asfaltada';
+
+  titulo.textContent = nombreTipo;
+
   detalles.innerHTML = `
-    Ubicación: Sector (${gx}, ${gz})<br/>
+    Ubicación: Sector (${gx}, ${gz})${celda.w ? ` [${celda.w}×${celda.h} celdas]` : ''}<br/>
     ${infoBarrio}
     Constructor: <em>${celda.autor || 'Municipio'}</em><br/>
     ${esVivienda ? `Estado: ${estadoAlquiler}<br/><small>Alquiler: 150 Oikos / ciclo</small>` : ''}
+    ${celda.tipo === 'estrada_terra' ? `<span style="color:#bcaaa4">Vía rústica de tierra. Puedes mejorarla a empedrado.</span>` : ''}
+    ${celda.tipo === 'estrada_empedrado' ? `<span style="color:#90a4ae">Vía empedrada colonial. Puedes mejorarla a asfalto.</span>` : ''}
+    ${celda.tipo === 'estrada' ? `<span style="color:#81c784">Vía asfaltada principal de alta velocidad.</span>` : ''}
   `;
 
   card.style.display = 'block';
@@ -2311,6 +3034,7 @@ function mostrarDetallesCelula(gx, gz) {
     };
   }
 
+  // Acciones de Vivienda
   if (esVivienda) {
     zonaAcciones.style.display = 'block';
     if (!celda.inquilino) {
@@ -2319,12 +3043,42 @@ function mostrarDetallesCelula(gx, gz) {
       btnDesalojar.style.display = 'block';
     }
   }
+
+  // Acciones de Mejora Vial con Dinero
+  if (esCalle) {
+    if (celda.tipo === 'estrada_terra') {
+      zonaAcciones.style.display = 'block';
+      if (btnUpgrade) {
+        btnUpgrade.textContent = '⬆️ Mejorar a Empedrado (80 Ø)';
+        btnUpgrade.style.display = 'block';
+        btnUpgrade.onclick = () => mejorarCalleLocal(gx, gz, 'estrada_empedrado', 80);
+      }
+    } else if (celda.tipo === 'estrada_empedrado') {
+      zonaAcciones.style.display = 'block';
+      if (btnUpgrade) {
+        btnUpgrade.textContent = '⬆️ Mejorar a Asfalto (150 Ø)';
+        btnUpgrade.style.display = 'block';
+        btnUpgrade.onclick = () => mejorarCalleLocal(gx, gz, 'estrada', 150);
+      }
+    }
+  }
+
+  // Acción Exclusiva del Alcalde: Mover Construcción de Lugar
+  if (jugadorLocal.esAdmin && !esCalle && btnMover) {
+    zonaAcciones.style.display = 'block';
+    btnMover.style.display = 'block';
+    btnMover.onclick = () => iniciarMoverObjeto(gx, gz);
+  }
 }
 
 function seleccionarHerramienta(nome) {
   if (nome === 'demolir' && !jugadorLocal.esAdmin) {
     mostrarNotificacion('🔒 Opción de demolición exclusiva del Alcalde.');
     return;
+  }
+
+  if (estado.objetoMoviendo && nome !== 'mover') {
+    cancelarMoverObjeto();
   }
 
   if (estado.ferramentaAtiva === 'delimitar_bairro' && nome !== 'delimitar_bairro') {
@@ -2342,7 +3096,7 @@ function seleccionarHerramienta(nome) {
 
   const indRot = document.getElementById('indicador-rotacao');
   const btnRotarTouch = document.getElementById('btn-rotar-touch');
-  const precisaRot = ['casa', 'sobrado', 'predio', 'loja', 'posto', 'usina'].includes(nome);
+  const precisaRot = ['casa', 'sobrado', 'predio', 'loja', 'posto', 'usina', 'municipalidad'].includes(nome);
   if (indRot) indRot.classList.toggle('visivel', precisaRot);
   if (btnRotarTouch) btnRotarTouch.style.display = precisaRot ? 'flex' : 'none';
 
@@ -2361,15 +3115,29 @@ function seleccionarHerramienta(nome) {
 function actualizarPreviewFantasma(gx, gz) {
   limparFantasma();
   const ferr = estado.ferramentaAtiva;
-  if (ferr === 'ponteiro' || ferr === 'demolir') return;
+  if (ferr === 'ponteiro' || ferr === 'demolir' || ferr === 'delimitar_bairro') return;
 
+  let w = 1;
+  let h = 1;
+
+  if (ferr === 'mover' && estado.objetoMoviendo) {
+    w = estado.objetoMoviendo.w || 1;
+    h = estado.objetoMoviendo.h || 1;
+  } else {
+    const dims = obtenerDimensionesObjeto(ferr);
+    w = dims.w;
+    h = dims.h;
+  }
+
+  const libre = verificarEspacioDisponible(gx, gz, w, h);
   const { x, z } = gradeParaMundo(gx, gz);
-  const livre = celulaValida(gx, gz) && estado.grade[gz][gx] === null;
+  const centroX = x + ((w - 1) * TAMANHO_CELULA) / 2;
+  const centroZ = z + ((h - 1) * TAMANHO_CELULA) / 2;
 
-  const geo = new THREE.BoxGeometry(TAMANHO_CELULA * 0.85, 2.0, TAMANHO_CELULA * 0.85);
-  const cor = livre ? 0x66bb6a : 0xef5350;
+  const geo = new THREE.BoxGeometry(w * TAMANHO_CELULA * 0.9, 2.0, h * TAMANHO_CELULA * 0.9);
+  const cor = libre ? 0x66bb6a : 0xef5350;
   fantasmaObjeto = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.45 }));
-  fantasmaObjeto.position.set(x, 1.0, z);
+  fantasmaObjeto.position.set(centroX, 1.0, centroZ);
   fantasmaObjeto.rotation.y = (estado.rotacaoAtual * Math.PI) / 180;
   cena.add(fantasmaObjeto);
 }
@@ -2458,6 +3226,11 @@ function actualizarHUD() {
     if (btnAbrirLogin) btnAbrirLogin.style.display = 'inline-block';
     if (btnDesconectar) btnDesconectar.style.display = 'none';
   }
+
+  // Reflejar visualmente en el catálogo si las obras de Alcalde están desbloqueadas
+  document.querySelectorAll('.solo-alcalde-item').forEach(el => {
+    el.classList.toggle('bloqueado-ciudadano', !jugadorLocal.esAdmin);
+  });
 
   actualizarBadgeBarrioActual();
 }
@@ -2639,6 +3412,8 @@ function desenharMiniMapa() {
 
   const colores = {
     estrada: '#37474f',
+    estrada_terra: '#8d6e63',
+    estrada_empedrado: '#78909c',
     casa: '#ffb74d',
     sobrado: '#0288d1',
     predio: '#90a4ae',
@@ -2646,7 +3421,8 @@ function desenharMiniMapa() {
     posto: '#e53935',
     parque: '#2e7d32',
     usina: '#546e7a',
-    caixaDAgua: '#00acc1'
+    caixaDAgua: '#00acc1',
+    municipalidad: '#ffd700'
   };
 
   for (let z = 0; z < TAMANHO_GRADE; z++) {
@@ -2707,7 +3483,12 @@ function animar() {
 
   frameContadorAnim++;
   if (frameContadorAnim % 12 === 0) {
-    actualizarBadgeBarrioActual();
+    // Reflejar visualmente en el catálogo si las obras de Alcalde están desbloqueadas
+  document.querySelectorAll('.solo-alcalde-item').forEach(el => {
+    el.classList.toggle('bloqueado-ciudadano', !jugadorLocal.esAdmin);
+  });
+
+  actualizarBadgeBarrioActual();
   }
 
   if (controles && gridHelper) {
@@ -2782,3 +3563,10 @@ actualizarChunksCamara(true); // Carga inmediata de los chunks iniciales
 iniciarCicloAlquilerLocal();
 actualizarHUD();
 desenharMiniMapa();
+
+// Autoguardado periódico cada 30 segundos
+setInterval(() => {
+  if (jugadorLocal.uid) {
+    guardarCiudadEnStorage(false);
+  }
+}, 30000);
