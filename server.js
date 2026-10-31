@@ -43,21 +43,21 @@ const COSTOS_CONSTRUCCION = {
   estrada: 0,
   estrada_terra: 0,
   estrada_empedrado: 120,
-  casa: 400,
-  sobrado: 900,
+  casa: 600,        // 2x2
+  sobrado: 1200,    // 2x2
   casa_moderna: 1800,
-  predio: 2200,
-  loja: 1100,
-  padaria: 1200,
-  mercado: 2500,
-  loja_roupa: 1400,
-  restaurante: 1800,
+  predio: 3000,     // 2x2
+  loja: 1500,       // 2x2
+  padaria: 1600,    // 2x2
+  mercado: 2500,    // 2x2
+  loja_roupa: 1800, // 2x2
+  restaurante: 2000, // 2x2
   loja_veiculos: 4500,
   banco: 6000,
-  posto: 1800,
+  posto: 3500,      // 4x4
   parque: 600,
   usina: 2800,
-  caixaDAgua: 2000,
+  caixaDAgua: 2500, // 2x2
   municipalidad: 5000,
   carro: 250,
   caminhao: 600,
@@ -72,7 +72,19 @@ const DIMENSIONES_OBJETOS = {
   casa_moderna: { w: 2, h: 2 },
   municipalidad: { w: 3, h: 3 },
   loja_veiculos: { w: 2, h: 2 },
-  banco: { w: 2, h: 2 }
+  banco: { w: 2, h: 2 },
+  // Construcciones ampliadas a 2x2
+  casa: { w: 2, h: 2 },
+  sobrado: { w: 2, h: 2 },
+  predio: { w: 2, h: 2 },
+  loja: { w: 2, h: 2 },
+  padaria: { w: 2, h: 2 },
+  mercado: { w: 2, h: 2 },
+  loja_roupa: { w: 2, h: 2 },
+  restaurante: { w: 2, h: 2 },
+  caixaDAgua: { w: 2, h: 2 },
+  // Gasolinera 4x4
+  posto: { w: 4, h: 4 }
 };
 
 function obtenerDimensionesObjeto(tipo) {
@@ -92,6 +104,44 @@ for (let z = 0; z < TAMANHO_GRADE; z++) {
 // Lista de vehículos compartidos
 let idVehiculoAuto = 1;
 const vehiculosCompartidos = [];
+
+// Celdas con bosque / vegetación natural silvestre (Set de "gx,gz")
+const celulasBosque = new Set();
+
+function generarBosquesIniciales() {
+  const c = Math.floor(TAMANHO_GRADE / 2);
+  for (let b = 0; b < 50; b++) {
+    const centroX = Math.floor(Math.random() * (TAMANHO_GRADE - 14)) + 7;
+    const centroZ = Math.floor(Math.random() * (TAMANHO_GRADE - 14)) + 7;
+    // Evitar el centro urbano principal (radio de 18 celdas)
+    if (Math.hypot(centroX - c, centroZ - c) < 18) continue;
+    const radio = 2 + Math.floor(Math.random() * 3);
+    for (let rz = -radio; rz <= radio; rz++) {
+      for (let rx = -radio; rx <= radio; rx++) {
+        if (rx * rx + rz * rz <= radio * radio + Math.random() * 2) {
+          const bx = centroX + rx;
+          const bz = centroZ + rz;
+          if (bx >= 0 && bx < TAMANHO_GRADE && bz >= 0 && bz < TAMANHO_GRADE) {
+            if (!mapa[bz]?.[bx]) {
+              celulasBosque.add(`${bx},${bz}`);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function colocarEdificioInicial(tipo, gx, gz, rot = 0, inquilino = null) {
+  const dims = obtenerDimensionesObjeto(tipo);
+  mapa[gz][gx] = { tipo, rot, inquilino, autor: 'Municipio', w: dims.w, h: dims.h, esRaiz: true };
+  for (let dz = 0; dz < dims.h; dz++) {
+    for (let dx = 0; dx < dims.w; dx++) {
+      if (dx === 0 && dz === 0) continue;
+      mapa[gz + dz][gx + dx] = { tipo, rootX: gx, rootZ: gz, esHijo: true };
+    }
+  }
+}
 
 /* ============================================================
    GENERACIÓN DE LA CIUDAD INICIAL COMPARTIDA
@@ -117,27 +167,29 @@ function inicializarCiudadBase() {
     mapa[z][c + 8] = { tipo: 'estrada', rot: 0, autor: 'Municipio' };
   }
 
-  // Viviendas iniciales disponibles para alquilar
-  mapa[c - 3][c - 3] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c - 5][c - 3] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c - 3][c + 3] = { tipo: 'sobrado', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c - 5][c + 3] = { tipo: 'sobrado', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c + 3][c - 3] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c + 5][c - 3] = { tipo: 'casa', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c + 3][c + 3] = { tipo: 'predio', rot: 0, inquilino: null, autor: 'Municipio' };
-  mapa[c + 5][c + 3] = { tipo: 'predio', rot: 0, inquilino: null, autor: 'Municipio' };
+  // Viviendas iniciales (2x2) disponibles para alquilar
+  colocarEdificioInicial('casa', c - 3, c - 3, 0);
+  colocarEdificioInicial('sobrado', c + 3, c - 3, 0);
+  colocarEdificioInicial('casa', c - 6, c - 3, 0);
+  colocarEdificioInicial('sobrado', c + 3, c + 3, 0);
+  colocarEdificioInicial('predio', c - 3, c + 3, 0);
+  colocarEdificioInicial('predio', c + 3, c + 6, 0);
 
-  // Servicios y comercios de la ciudad
-  mapa[c - 4][c - 5] = { tipo: 'loja', rot: 0, autor: 'Municipio' };
-  mapa[c + 4][c - 5] = { tipo: 'loja', rot: 0, autor: 'Municipio' };
-  mapa[c + 4][c + 5] = { tipo: 'posto', rot: 0, autor: 'Municipio' };
-  mapa[c - 7][c - 6] = { tipo: 'municipalidad', rot: 0, autor: 'Municipio', w: 3, h: 3 };
-  mapa[c + 2][c - 14] = { tipo: 'parque', rot: 0, autor: 'Municipio', w: 6, h: 6 };
-  mapa[c - 15][c + 9] = { tipo: 'usina', rot: 0, autor: 'Municipio', w: 6, h: 6 };
-  mapa[c - 5][c - 5] = { tipo: 'casa_moderna', rot: 0, inquilino: null, autor: 'Municipio', w: 2, h: 2 };
-  mapa[c + 11][c + 11] = { tipo: 'caixaDAgua', rot: 0, autor: 'Municipio' };
+  // Servicios y comercios de la ciudad (todos en sus dimensiones reales)
+  colocarEdificioInicial('loja', c - 6, c + 3, 0);
+  colocarEdificioInicial('padaria', c - 6, c + 6, 0);
+  colocarEdificioInicial('mercado', c + 6, c - 3, 0);
+  colocarEdificioInicial('posto', c + 2, c + 10, 0); // Gasolinera 4x4
+  colocarEdificioInicial('municipalidad', c - 7, c - 7, 0); // 3x3
+  colocarEdificioInicial('parque', c + 2, c - 15, 0); // 6x6
+  colocarEdificioInicial('usina', c - 15, c + 9, 0); // 6x6
+  colocarEdificioInicial('casa_moderna', c - 6, c - 6, 0); // 2x2
+  colocarEdificioInicial('caixaDAgua', c + 10, c - 6, 0); // 2x2
 
-  console.log('✅ Ciudad inicial de KatueteCity creada en el servidor (Mapa 400x400).');
+  // Generar bosques en los alrededores
+  generarBosquesIniciales();
+
+  console.log('✅ Ciudad inicial de KatueteCity creada en el servidor (Mapa 400x400 con Bosques y Construcciones 2x2/4x4/6x6).');
 }
 function cargarMapaDesdeArchivo() {
   if (fs.existsSync(ARCHIVO_PERSISTENCIA)) {
@@ -315,7 +367,8 @@ io.on('connection', (socket) => {
       perfil: nuevoJugador,
       mapa: mapaSerializado,
       jugadoresOnline: listaUsuarios,
-      costos: COSTOS_CONSTRUCCION
+      costos: COSTOS_CONSTRUCCION,
+      bosques: Array.from(celulasBosque)
     });
 
     // Notificar a todos los demás que un nuevo ciudadano ingresó
@@ -462,6 +515,13 @@ io.on('connection', (socket) => {
 
     if (gx < 0 || gz < 0 || gx >= TAMANHO_GRADE || gz >= TAMANHO_GRADE) {
       socket.emit('notificacion', { tipo: 'error', mensaje: 'Coordenadas inválidas.' });
+      return;
+    }
+
+    // Verificar límite de alquileres simultáneos (máx. 3 propiedades)
+    const alquiladasActivas = jugador.casasAlquiladas.filter(c => c.expira > Date.now());
+    if (alquiladasActivas.length >= 3) {
+      socket.emit('notificacion', { tipo: 'error', mensaje: '⚠️ Límite de alquiler alcanzado (máx. 3 propiedades simultáneas).' });
       return;
     }
 
@@ -643,6 +703,10 @@ io.on('connection', (socket) => {
           socket.emit('notificacion', { tipo: 'error', mensaje: 'Ese terreno ya está ocupado o no cabe la huella.' });
           return;
         }
+        if (celulasBosque.has(`${cx},${cz}`)) {
+          socket.emit('notificacion', { tipo: 'error', mensaje: '🌲 Debes desmalezar el bosque antes de construir aquí (150 Oikos por celda).' });
+          return;
+        }
       }
     }
 
@@ -700,6 +764,28 @@ io.on('connection', (socket) => {
 
   socket.on('solicitar_construccion', procesarConstruccion);
   socket.on('construir_objeto', procesarConstruccion);
+
+  socket.on('limpiar_terreno', ({ gx, gz }) => {
+    const jugador = jugadores.get(socket.id);
+    if (!jugador) return;
+    const clave = `${gx},${gz}`;
+    if (!celulasBosque.has(clave)) {
+      socket.emit('notificacion', { tipo: 'info', mensaje: 'Este terreno no tiene vegetación silvestre.' });
+      return;
+    }
+    const COSTO_LIMPIEZA = 150;
+    if (jugador.oikos < COSTO_LIMPIEZA && !jugador.esAdmin) {
+      socket.emit('notificacion', { tipo: 'error', mensaje: `Saldo insuficiente para limpiar terreno (Requiere ${COSTO_LIMPIEZA} Oikos).` });
+      return;
+    }
+    if (!jugador.esAdmin) {
+      jugador.oikos -= COSTO_LIMPIEZA;
+    }
+    celulasBosque.delete(clave);
+    io.emit('terreno_limpiado', { gx, gz, jugador: jugador.nombre });
+    socket.emit('construccion_confirmada', { nuevoSaldoOikos: jugador.oikos });
+    socket.emit('notificacion', { tipo: 'exito', mensaje: `🌲 Terreno desmalezado exitosamente (-${COSTO_LIMPIEZA} Oikos).` });
+  });
 
   /**
    * 5. DEMOLICIÓN SINCRONIZADA

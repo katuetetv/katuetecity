@@ -123,11 +123,26 @@ function inicializarConexionSocket() {
         });
         desenharMiniMapa();
       }
+      if (datos?.bosques && Array.isArray(datos.bosques)) {
+        meshBosquesPorClave.forEach(m => {
+          if (grupoBosques) grupoBosques.remove(m);
+        });
+        meshBosquesPorClave.clear();
+        celulasBosque.clear();
+        datos.bosques.forEach(clave => {
+          const [bx, bz] = clave.split(',').map(Number);
+          adicionarBosqueLocal(bx, bz);
+        });
+      }
       if (datos?.jugadoresOnline) {
         actualizarListaCiudadanos(datos.jugadoresOnline);
         const elOnline = document.getElementById('stat-jugadores-online');
         if (elOnline) elOnline.textContent = datos.jugadoresOnline.length;
       }
+    });
+
+    socket.on('terreno_limpiado', ({ gx, gz }) => {
+      removerBosqueLocal(gx, gz);
     });
 
     // 2. Construcción replicada en tiempo real de otro jugador
@@ -294,21 +309,21 @@ const COSTOS_CONSTRUCCION = {
   estrada_terra: 0,
   estrada_empedrado: 120,
   estrada: 0, // Exclusivo Alcalde
-  casa: 400,
-  sobrado: 900,
+  casa: 600,        // 2x2
+  sobrado: 1200,    // 2x2
   casa_moderna: 1800,  // Mansión Moderna de Lujo (2x2)
-  predio: 2200,
-  loja: 1100,
-  padaria: 1200,
-  mercado: 2000,
-  loja_roupa: 1500,
-  restaurante: 1600,
-  posto: 1800,
+  predio: 3000,     // 2x2
+  loja: 1500,       // 2x2
+  padaria: 1600,    // 2x2
+  mercado: 2500,    // 2x2
+  loja_roupa: 1800, // 2x2
+  restaurante: 2000, // 2x2
+  posto: 3500,      // 4x4
   loja_veiculos: 3200, // 2x2
   banco: 4000,         // 2x2
   parque: 600,         // Exclusivo Alcalde (6x6)
   usina: 2800,         // Exclusivo Alcalde (6x6)
-  caixaDAgua: 2000,    // Exclusivo Alcalde
+  caixaDAgua: 2500,    // Exclusivo Alcalde (2x2)
   municipalidad: 5000   // Exclusivo Alcalde (3x3)
 };
 
@@ -328,7 +343,19 @@ const DIMENSIONES_OBJETOS = {
   casa_moderna: { w: 2, h: 2 },
   municipalidad: { w: 3, h: 3 },
   loja_veiculos: { w: 2, h: 2 },
-  banco: { w: 2, h: 2 }
+  banco: { w: 2, h: 2 },
+  // Construcciones ampliadas a 2x2
+  casa: { w: 2, h: 2 },
+  sobrado: { w: 2, h: 2 },
+  predio: { w: 2, h: 2 },
+  loja: { w: 2, h: 2 },
+  padaria: { w: 2, h: 2 },
+  mercado: { w: 2, h: 2 },
+  loja_roupa: { w: 2, h: 2 },
+  restaurante: { w: 2, h: 2 },
+  caixaDAgua: { w: 2, h: 2 },
+  // Gasolinera 4x4
+  posto: { w: 4, h: 4 }
 };
 
 function obtenerDimensionesObjeto(tipo) {
@@ -953,35 +980,193 @@ function configurarIluminacao() {
   cena.add(hemi);
 }
 
+function criarTexturaPastura() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  
+  // Base de pastura campestre
+  ctx.fillStyle = '#6d9c42';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Parches orgánicos de pastizal con variaciones de tonalidades
+  const tonos = ['#7ea354', '#648b38', '#86a848', '#5b8332', '#96b45b', '#52772b'];
+  for (let i = 0; i < 280; i++) {
+    const px = Math.random() * 512;
+    const py = Math.random() * 512;
+    const rad = 10 + Math.random() * 35;
+    ctx.beginPath();
+    ctx.arc(px, py, rad, 0, Math.PI * 2);
+    ctx.fillStyle = tonos[Math.floor(Math.random() * tonos.length)];
+    ctx.globalAlpha = 0.35 + Math.random() * 0.3;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1.0;
+
+  // Briznas y textura de campo
+  ctx.fillStyle = '#476922';
+  for (let i = 0; i < 3500; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    ctx.fillRect(x, y, 1.5, 3.0);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(24, 24);
+  return texture;
+}
+
+const celulasBosque = new Set();
+const meshBosquesPorClave = new Map();
+let grupoBosques = null;
+
+function criarMeshBosqueCelular() {
+  const grupo = new THREE.Group();
+  
+  const matTronco = new THREE.MeshLambertMaterial({ color: 0x4e342e });
+  const matLapachoRosa = new THREE.MeshLambertMaterial({ color: 0xf48fb1 });
+  const matLapachoAmarillo = new THREE.MeshLambertMaterial({ color: 0xffd54f });
+  const matArbolVerde = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+  const matSotobosque = new THREE.MeshLambertMaterial({ color: 0x33691e });
+
+  const config = [
+    { x: -0.9, z: -0.8, h: 2.2, r: 0.95, mat: Math.random() > 0.4 ? matLapachoRosa : matArbolVerde },
+    { x: 0.8, z: 0.7, h: 2.6, r: 1.1, mat: Math.random() > 0.5 ? matLapachoAmarillo : matArbolVerde },
+    { x: 0.6, z: -0.9, h: 1.8, r: 0.8, mat: matArbolVerde }
+  ];
+
+  config.forEach(a => {
+    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, a.h, 6), matTronco);
+    tronco.position.set(a.x, a.h / 2, a.z);
+    tronco.castShadow = true;
+    grupo.add(tronco);
+
+    const copa = new THREE.Mesh(new THREE.DodecahedronGeometry(a.r, 1), a.mat);
+    copa.position.set(a.x, a.h + a.r * 0.7, a.z);
+    copa.castShadow = true;
+    grupo.add(copa);
+  });
+
+  [-0.3, 0.4].forEach((ax, idx) => {
+    const arbusto = new THREE.Mesh(new THREE.SphereGeometry(0.4, 6, 6), matSotobosque);
+    arbusto.position.set(ax, 0.25, idx === 0 ? 0.8 : -0.2);
+    grupo.add(arbusto);
+  });
+
+  return grupo;
+}
+
+function adicionarBosqueLocal(gx, gz) {
+  const clave = `${gx},${gz}`;
+  if (celulasBosque.has(clave)) return;
+  celulasBosque.add(clave);
+  if (!grupoBosques) return;
+  const mesh = criarMeshBosqueCelular();
+  const { x, z } = gradeParaMundo(gx, gz);
+  mesh.position.set(x, 0, z);
+  grupoBosques.add(mesh);
+  meshBosquesPorClave.set(clave, mesh);
+}
+
+function removerBosqueLocal(gx, gz) {
+  const clave = `${gx},${gz}`;
+  celulasBosque.delete(clave);
+  const m = meshBosquesPorClave.get(clave);
+  if (m && grupoBosques) {
+    grupoBosques.remove(m);
+    meshBosquesPorClave.delete(clave);
+  }
+}
+
+function generarBosquesPredeterminados() {
+  const c = Math.floor(TAMANHO_GRADE / 2);
+  for (let b = 0; b < 50; b++) {
+    const centroX = Math.floor(Math.random() * (TAMANHO_GRADE - 14)) + 7;
+    const centroZ = Math.floor(Math.random() * (TAMANHO_GRADE - 14)) + 7;
+    if (Math.hypot(centroX - c, centroZ - c) < 18) continue;
+    const radio = 2 + Math.floor(Math.random() * 3);
+    for (let rz = -radio; rz <= radio; rz++) {
+      for (let rx = -radio; rx <= radio; rx++) {
+        if (rx * rx + rz * rz <= radio * radio + Math.random() * 2) {
+          const bx = centroX + rx;
+          const bz = centroZ + rz;
+          if (bx >= 0 && bx < TAMANHO_GRADE && bz >= 0 && bz < TAMANHO_GRADE) {
+            if (!estado.grade[bz]?.[bx]) {
+              adicionarBosqueLocal(bx, bz);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function solicitarLimpiezaTerreno(gx, gz) {
+  const clave = `${gx},${gz}`;
+  if (!celulasBosque.has(clave)) {
+    mostrarNotificacion('ℹ️ Este terreno ya está despejado.');
+    return;
+  }
+  const COSTO = 150;
+  if (jugadorLocal.oikos < COSTO && !jugadorLocal.esAdmin) {
+    mostrarNotificacion(`❌ Saldo insuficiente (${COSTO} Oikos necesarios para desmalezar el terreno).`);
+    tocarSonido('error');
+    return;
+  }
+  if (!jugadorLocal.esAdmin) {
+    jugadorLocal.oikos -= COSTO;
+  }
+  removerBosqueLocal(gx, gz);
+  actualizarHUD();
+  tocarSonido('construir');
+  mostrarNotificacion(`🌲 Terreno desmalezado y preparado (-${COSTO} Oikos).`);
+  if (socket && socket.connected) {
+    socket.emit('limpiar_terreno', { gx, gz });
+  }
+  mostrarDetallesCelula(gx, gz);
+}
+
 function criarTerreno() {
   const total = TAMANHO_GRADE * TAMANHO_CELULA;
+  const texturaPastura = criarTexturaPastura();
 
-  // Terreno exterior verde
+  // Terreno exterior de pastizal ondulado
   const geoGramaFora = new THREE.PlaneGeometry(total * 2.5, total * 2.5);
-  const matGramaFora = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+  const matGramaFora = new THREE.MeshLambertMaterial({ map: texturaPastura, color: 0x5c8236 });
   const meshFora = new THREE.Mesh(geoGramaFora, matGramaFora);
   meshFora.rotation.x = -Math.PI / 2;
   meshFora.position.y = -0.08;
   meshFora.receiveShadow = true;
   cena.add(meshFora);
 
-  // Terreno central de la ciudad
+  // Terreno central de pastura natural
   const geoChao = new THREE.PlaneGeometry(total, total);
-  const matChao = new THREE.MeshLambertMaterial({ color: 0x43a047 });
+  const matChao = new THREE.MeshLambertMaterial({ map: texturaPastura, color: 0x7cb87a });
   const chao = new THREE.Mesh(geoChao, matChao);
   chao.rotation.x = -Math.PI / 2;
   chao.position.y = -0.02;
   chao.receiveShadow = true;
   cena.add(chao);
 
-  // Cuadrícula dinámica de construcción que sigue a la cámara
+  // Cuadrícula dinámica de construcción
   const tamanhoGradeVisivel = 160;
   const divisoes = 40;
-  gridHelper = new THREE.GridHelper(tamanhoGradeVisivel, divisoes, 0x1b5e20, 0x2e7d32);
+  gridHelper = new THREE.GridHelper(tamanhoGradeVisivel, divisoes, 0x2e4d1a, 0x3d6622);
   gridHelper.position.y = 0.04;
   gridHelper.material.transparent = true;
-  gridHelper.material.opacity = 0.35;
+  gridHelper.material.opacity = 0.3;
   cena.add(gridHelper);
+
+  // Grupo contenedor de bosques naturales
+  grupoBosques = new THREE.Group();
+  grupoBosques.name = 'grupo_bosques_naturales';
+  cena.add(grupoBosques);
+
+  // Generar bosques predeterminados
+  generarBosquesPredeterminados();
 }
 
 function mundoParaGrade(wx, wz) {
@@ -1007,20 +1192,21 @@ function celulaValida(gx, gz) {
    ============================================================ */
 function criarCasa(rot) {
   const grupo = new THREE.Group();
-  const parede = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.8, 2.6), new THREE.MeshLambertMaterial({ color: 0xfff3e0 }));
-  parede.position.y = 0.9;
+  // Modelo 2x2 (huella 8.0m): aumentar escala para aprovechar el terreno
+  const parede = new THREE.Mesh(new THREE.BoxGeometry(5.5, 2.5, 5.5), new THREE.MeshLambertMaterial({ color: 0xfff3e0 }));
+  parede.position.y = 1.25;
   parede.castShadow = true;
   parede.receiveShadow = true;
   grupo.add(parede);
 
-  const telhado = new THREE.Mesh(new THREE.ConeGeometry(2.3, 1.2, 4), new THREE.MeshLambertMaterial({ color: 0xd84315 }));
-  telhado.position.y = 2.4;
+  const telhado = new THREE.Mesh(new THREE.ConeGeometry(4.2, 1.8, 4), new THREE.MeshLambertMaterial({ color: 0xd84315 }));
+  telhado.position.y = 3.4;
   telhado.rotation.y = Math.PI / 4;
   telhado.castShadow = true;
   grupo.add(telhado);
 
-  const porta = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.9, 0.08), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
-  porta.position.set(0, 0.45, 1.32);
+  const porta = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 0.08), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+  porta.position.set(0, 0.7, 2.76);
   grupo.add(porta);
 
   grupo.rotation.y = rot;
@@ -1030,18 +1216,19 @@ function criarCasa(rot) {
 
 function criarSobrado(rot) {
   const grupo = new THREE.Group();
-  const p1 = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.8, 3.0), new THREE.MeshLambertMaterial({ color: 0xefebe9 }));
-  p1.position.y = 0.9;
+  // Modelo 2x2 (huella 8.0m): doble planta ampliada
+  const p1 = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.2, 5.6), new THREE.MeshLambertMaterial({ color: 0xefebe9 }));
+  p1.position.y = 1.1;
   p1.castShadow = true;
   grupo.add(p1);
 
-  const p2 = new THREE.Mesh(new THREE.BoxGeometry(2.7, 1.6, 2.7), new THREE.MeshLambertMaterial({ color: 0x0288d1 }));
-  p2.position.y = 2.6;
+  const p2 = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.0, 5.0), new THREE.MeshLambertMaterial({ color: 0x0288d1 }));
+  p2.position.y = 3.3;
   p2.castShadow = true;
   grupo.add(p2);
 
-  const telhado = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.2, 2.9), new THREE.MeshLambertMaterial({ color: 0x37474f }));
-  telhado.position.y = 3.5;
+  const telhado = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.25, 5.4), new THREE.MeshLambertMaterial({ color: 0x37474f }));
+  telhado.position.y = 4.45;
   telhado.castShadow = true;
   grupo.add(telhado);
 
@@ -1052,17 +1239,18 @@ function criarSobrado(rot) {
 
 function criarPredio(rot) {
   const grupo = new THREE.Group();
-  const altura = 7.5;
-  const corpo = new THREE.Mesh(new THREE.BoxGeometry(3.2, altura, 3.2), new THREE.MeshLambertMaterial({ color: 0x546e7a }));
+  // Modelo 2x2 (huella 8.0m): edificio de departamentos
+  const altura = 10.0;
+  const corpo = new THREE.Mesh(new THREE.BoxGeometry(5.8, altura, 5.8), new THREE.MeshLambertMaterial({ color: 0x546e7a }));
   corpo.position.y = altura / 2;
   corpo.castShadow = true;
   grupo.add(corpo);
 
   const matVidro = new THREE.MeshLambertMaterial({ color: 0xb3e5fc });
-  for (let y = 1.2; y < altura - 0.5; y += 1.4) {
-    [-0.8, 0.8].forEach(x => {
-      const jFront = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.05), matVidro);
-      jFront.position.set(x, y, 1.62);
+  for (let y = 1.5; y < altura - 0.5; y += 1.8) {
+    [-1.5, 0, 1.5].forEach(x => {
+      const jFront = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.1, 0.05), matVidro);
+      jFront.position.set(x, y, 2.93);
       grupo.add(jFront);
     });
   }
@@ -1217,13 +1405,14 @@ function criarCasaModerna(rot) {
 
 function criarLoja(rot) {
   const grupo = new THREE.Group();
-  const base = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.4, 3.4), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
-  base.position.y = 1.2;
+  // Modelo 2x2 (huella 8.0m): tienda comercial ampliada
+  const base = new THREE.Mesh(new THREE.BoxGeometry(6.2, 3.0, 6.2), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
+  base.position.y = 1.5;
   base.castShadow = true;
   grupo.add(base);
 
-  const marquise = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.25, 1.2), new THREE.MeshLambertMaterial({ color: 0xd32f2f }));
-  marquise.position.set(0, 1.9, 1.8);
+  const marquise = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.3, 2.0), new THREE.MeshLambertMaterial({ color: 0xd32f2f }));
+  marquise.position.set(0, 2.5, 3.2);
   marquise.castShadow = true;
   grupo.add(marquise);
 
@@ -1234,38 +1423,39 @@ function criarLoja(rot) {
 
 function criarPadaria(rot) {
   const grupo = new THREE.Group();
-  const paredes = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.5, 3.4), new THREE.MeshLambertMaterial({ color: 0xfff3e0 }));
-  paredes.position.y = 1.25;
+  // Modelo 2x2 (huella 8.0m): panadería artesanal ampliada
+  const paredes = new THREE.Mesh(new THREE.BoxGeometry(6.2, 3.2, 6.2), new THREE.MeshLambertMaterial({ color: 0xfff3e0 }));
+  paredes.position.y = 1.6;
   paredes.castShadow = true;
   grupo.add(paredes);
 
-  const toldo = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.28, 1.3), new THREE.MeshLambertMaterial({ color: 0xd84315 }));
-  toldo.position.set(0, 2.0, 1.85);
+  const toldo = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.32, 2.2), new THREE.MeshLambertMaterial({ color: 0xd84315 }));
+  toldo.position.set(0, 2.8, 3.2);
   toldo.rotation.x = 0.15;
   toldo.castShadow = true;
   grupo.add(toldo);
 
-  const vidrio = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 0.1), new THREE.MeshLambertMaterial({ color: 0x81d4fa, transparent: true, opacity: 0.8 }));
-  vidrio.position.set(-0.7, 1.2, 1.72);
+  const vidrio = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.5, 0.1), new THREE.MeshLambertMaterial({ color: 0x81d4fa, transparent: true, opacity: 0.8 }));
+  vidrio.position.set(-1.2, 1.4, 3.12);
   grupo.add(vidrio);
 
-  [-0.9, -0.6, -0.3].forEach(px => {
-    const baguette = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.45, 6), new THREE.MeshLambertMaterial({ color: 0xc68a4c }));
-    baguette.position.set(px, 1.0, 1.6);
+  [-1.5, -1.0, -0.5].forEach(px => {
+    const baguette = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.65, 6), new THREE.MeshLambertMaterial({ color: 0xc68a4c }));
+    baguette.position.set(px, 1.2, 3.0);
     baguette.rotation.z = Math.PI / 4;
     grupo.add(baguette);
   });
 
-  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.7, 0.08), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
-  puerta.position.set(0.9, 0.85, 1.72);
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.2, 0.08), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+  puerta.position.set(1.6, 1.1, 3.12);
   grupo.add(puerta);
 
-  const chimenea = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.8, 0.45), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
-  chimenea.position.set(-1.0, 2.8, -0.8);
+  const chimenea = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.1, 0.6), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
+  chimenea.position.set(-2.0, 3.8, -1.5);
   grupo.add(chimenea);
 
-  const letrero = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.08), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
-  letrero.position.set(0, 2.35, 1.73);
+  const letrero = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.45, 0.08), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
+  letrero.position.set(0, 3.3, 3.13);
   grupo.add(letrero);
 
   grupo.rotation.y = rot;
@@ -1275,34 +1465,35 @@ function criarPadaria(rot) {
 
 function criarMercado(rot) {
   const grupo = new THREE.Group();
-  const nave = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.8, 3.6), new THREE.MeshLambertMaterial({ color: 0xf1f8e9 }));
-  nave.position.y = 1.4;
+  // Modelo 2x2 (huella 8.0m): supermercado ampliado
+  const nave = new THREE.Mesh(new THREE.BoxGeometry(6.5, 3.5, 6.5), new THREE.MeshLambertMaterial({ color: 0xf1f8e9 }));
+  nave.position.y = 1.75;
   nave.castShadow = true;
   grupo.add(nave);
 
-  const marquesina = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.4, 1.2), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
-  marquesina.position.set(0, 2.3, 1.85);
+  const marquesina = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.5, 2.0), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+  marquesina.position.set(0, 3.3, 3.3);
   marquesina.castShadow = true;
   grupo.add(marquesina);
 
-  const cartelRooftop = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, 0.2), new THREE.MeshLambertMaterial({ color: 0x1b5e20 }));
-  cartelRooftop.position.set(0, 3.2, 0.5);
+  const cartelRooftop = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.9, 0.2), new THREE.MeshLambertMaterial({ color: 0x1b5e20 }));
+  cartelRooftop.position.set(0, 4.3, 0.5);
   grupo.add(cartelRooftop);
 
-  const logoCartel = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.5, 0.22), new THREE.MeshLambertMaterial({ color: 0xffeb3b }));
-  logoCartel.position.set(0, 3.2, 0.52);
+  const logoCartel = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.6, 0.22), new THREE.MeshLambertMaterial({ color: 0xffeb3b }));
+  logoCartel.position.set(0, 4.3, 0.52);
   grupo.add(logoCartel);
 
-  const puertas = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.8, 0.1), new THREE.MeshLambertMaterial({ color: 0x80deea, transparent: true, opacity: 0.85 }));
-  puertas.position.set(0, 0.9, 1.82);
+  const puertas = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 0.1), new THREE.MeshLambertMaterial({ color: 0x80deea, transparent: true, opacity: 0.85 }));
+  puertas.position.set(0, 1.2, 3.28);
   grupo.add(puertas);
 
-  const techoCarritos = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 0.8), new THREE.MeshLambertMaterial({ color: 0x78909c }));
-  techoCarritos.position.set(-1.25, 1.1, 1.9);
+  const techoCarritos = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 1.0), new THREE.MeshLambertMaterial({ color: 0x78909c }));
+  techoCarritos.position.set(-2.2, 1.5, 3.5);
   grupo.add(techoCarritos);
-  [-1.4, -1.1].forEach(cx => {
-    const carrito = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.4, 0.35), new THREE.MeshLambertMaterial({ color: 0xb0bec5 }));
-    carrito.position.set(cx, 0.25, 1.9);
+  [-2.5, -2.0].forEach(cx => {
+    const carrito = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.5, 0.45), new THREE.MeshLambertMaterial({ color: 0xb0bec5 }));
+    carrito.position.set(cx, 0.3, 3.5);
     grupo.add(carrito);
   });
 
@@ -1313,36 +1504,37 @@ function criarMercado(rot) {
 
 function criarLojaRoupa(rot) {
   const grupo = new THREE.Group();
-  const base = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.6, 3.4), new THREE.MeshLambertMaterial({ color: 0x4a148c }));
-  base.position.y = 1.3;
+  // Modelo 2x2 (huella 8.0m): boutique de modas ampliada
+  const base = new THREE.Mesh(new THREE.BoxGeometry(6.2, 3.2, 6.2), new THREE.MeshLambertMaterial({ color: 0x4a148c }));
+  base.position.y = 1.6;
   base.castShadow = true;
   grupo.add(base);
 
-  const marco = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.65, 0.3), new THREE.MeshLambertMaterial({ color: 0xad1457 }));
-  marco.position.set(0, 1.32, 1.6);
+  const marco = new THREE.Mesh(new THREE.BoxGeometry(6.4, 3.25, 0.35), new THREE.MeshLambertMaterial({ color: 0xad1457 }));
+  marco.position.set(0, 1.62, 3.0);
   grupo.add(marco);
 
-  const toldo = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.25, 1.1), new THREE.MeshLambertMaterial({ color: 0x212121 }));
-  toldo.position.set(0, 2.15, 1.85);
+  const toldo = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.3, 1.8), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+  toldo.position.set(0, 2.9, 3.3);
   toldo.rotation.x = 0.2;
   grupo.add(toldo);
 
-  [-0.9, 0.9].forEach((vx, idx) => {
-    const vitrina = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.5, 0.1), new THREE.MeshLambertMaterial({ color: 0xe1bee7, transparent: true, opacity: 0.8 }));
-    vitrina.position.set(vx, 1.1, 1.77);
+  [-1.8, 1.8].forEach((vx, idx) => {
+    const vitrina = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.0, 0.1), new THREE.MeshLambertMaterial({ color: 0xe1bee7, transparent: true, opacity: 0.8 }));
+    vitrina.position.set(vx, 1.5, 3.12);
     grupo.add(vitrina);
 
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.65, 8), new THREE.MeshLambertMaterial({ color: idx === 0 ? 0xff4081 : 0x00e5ff }));
-    torso.position.set(vx, 1.1, 1.65);
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.85, 8), new THREE.MeshLambertMaterial({ color: idx === 0 ? 0xff4081 : 0x00e5ff }));
+    torso.position.set(vx, 1.4, 2.95);
     grupo.add(torso);
 
-    const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshLambertMaterial({ color: 0xffecb3 }));
-    cabeza.position.set(vx, 1.5, 1.65);
+    const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), new THREE.MeshLambertMaterial({ color: 0xffecb3 }));
+    cabeza.position.set(vx, 2.05, 2.95);
     grupo.add(cabeza);
   });
 
-  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.8, 0.08), new THREE.MeshLambertMaterial({ color: 0x212121 }));
-  puerta.position.set(0, 0.9, 1.77);
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.3, 0.08), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+  puerta.position.set(0, 1.15, 3.12);
   grupo.add(puerta);
 
   grupo.rotation.y = rot;
@@ -1352,42 +1544,45 @@ function criarLojaRoupa(rot) {
 
 function criarRestaurante(rot) {
   const grupo = new THREE.Group();
-  const salon = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.5, 2.8), new THREE.MeshLambertMaterial({ color: 0xbf360c }));
-  salon.position.set(0, 1.25, -0.3);
+  // Modelo 2x2 (huella 8.0m): restaurante gourmet ampliado
+  const salon = new THREE.Mesh(new THREE.BoxGeometry(6.0, 3.2, 5.0), new THREE.MeshLambertMaterial({ color: 0xbf360c }));
+  salon.position.set(0, 1.6, -0.5);
   salon.castShadow = true;
   grupo.add(salon);
 
-  const moldura = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.22, 2.9), new THREE.MeshLambertMaterial({ color: 0x3e2723 }));
-  moldura.position.set(0, 2.55, -0.3);
+  const moldura = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.28, 5.2), new THREE.MeshLambertMaterial({ color: 0x3e2723 }));
+  moldura.position.set(0, 3.35, -0.5);
   grupo.add(moldura);
 
-  const toldoPatio = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.2, 1.2), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
-  toldoPatio.position.set(0, 2.1, 1.1);
+  const toldoPatio = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.22, 2.0), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
+  toldoPatio.position.set(0, 3.0, 2.5);
   toldoPatio.rotation.x = 0.15;
   grupo.add(toldoPatio);
 
-  const terraza = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 1.3), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
-  terraza.position.set(0, 0.06, 1.25);
+  const terraza = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.14, 2.2), new THREE.MeshLambertMaterial({ color: 0x8d6e63 }));
+  terraza.position.set(0, 0.07, 2.5);
   grupo.add(terraza);
 
-  const mesa = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.45, 12), new THREE.MeshLambertMaterial({ color: 0xffffff }));
-  mesa.position.set(-0.8, 0.3, 1.25);
-  grupo.add(mesa);
+  [-1.5, 1.5].forEach(tx => {
+    const mesa = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.5, 12), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+    mesa.position.set(tx, 0.3, 2.5);
+    grupo.add(mesa);
 
-  const paloSombrilla = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.3, 6), new THREE.MeshLambertMaterial({ color: 0x424242 }));
-  paloSombrilla.position.set(-0.8, 0.9, 1.25);
-  grupo.add(paloSombrilla);
+    const paloSombrilla = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6), new THREE.MeshLambertMaterial({ color: 0x424242 }));
+    paloSombrilla.position.set(tx, 1.1, 2.5);
+    grupo.add(paloSombrilla);
 
-  const conoSombrilla = new THREE.Mesh(new THREE.ConeGeometry(0.7, 0.35, 8), new THREE.MeshLambertMaterial({ color: 0xc62828 }));
-  conoSombrilla.position.set(-0.8, 1.55, 1.25);
-  grupo.add(conoSombrilla);
+    const conoSombrilla = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.4, 8), new THREE.MeshLambertMaterial({ color: 0xc62828 }));
+    conoSombrilla.position.set(tx, 1.9, 2.5);
+    grupo.add(conoSombrilla);
+  });
 
-  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.7, 0.08), new THREE.MeshLambertMaterial({ color: 0x3e2723 }));
-  puerta.position.set(0.7, 0.85, 1.12);
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.2, 0.08), new THREE.MeshLambertMaterial({ color: 0x3e2723 }));
+  puerta.position.set(1.5, 1.1, 2.02);
   grupo.add(puerta);
 
-  const ventanal = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 0.08), new THREE.MeshLambertMaterial({ color: 0xffecb3, transparent: true, opacity: 0.8 }));
-  ventanal.position.set(-0.5, 1.2, 1.12);
+  const ventanal = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.3, 0.08), new THREE.MeshLambertMaterial({ color: 0xffecb3, transparent: true, opacity: 0.8 }));
+  ventanal.position.set(-1.2, 1.6, 2.02);
   grupo.add(ventanal);
 
   grupo.rotation.y = rot;
@@ -1537,20 +1732,167 @@ function criarBanco(rot) {
 
 function criarPosto(rot) {
   const grupo = new THREE.Group();
-  const piso = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.1, 3.8), new THREE.MeshLambertMaterial({ color: 0x78909c }));
-  piso.position.y = 0.05;
+  const tamanho = TAMANHO_CELULA * 4; // 16.0m (Huella 4x4 celdas)
+
+  // 1. Pavimento base de hormigón y asfalto de alta resistencia
+  const matAsfalto = new THREE.MeshLambertMaterial({ color: 0x37474f });
+  const piso = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.3, 0.16, tamanho - 0.3), matAsfalto);
+  piso.position.y = 0.08;
+  piso.receiveShadow = true;
   grupo.add(piso);
 
-  const cobertura = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.2, 2.6), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
-  cobertura.position.set(0, 2.8, 0.2);
-  cobertura.castShadow = true;
-  grupo.add(cobertura);
+  // Cordones de seguridad perimetrales amarillos
+  const matCordon = new THREE.MeshLambertMaterial({ color: 0xfbc02d });
+  const cordonFrente = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.4, 0.22, 0.25), matCordon);
+  cordonFrente.position.set(0, 0.11, 7.6);
+  grupo.add(cordonFrente);
 
-  [-1.3, 1.3].forEach(cx => {
-    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.8, 8), new THREE.MeshLambertMaterial({ color: 0xcfcfcf }));
-    col.position.set(cx, 1.4, 0.2);
+  // 2. Gran Cobertura / Alero Principal para Islas de Combustible (14m x 7.6m)
+  const matAlero = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+  const alero = new THREE.Mesh(new THREE.BoxGeometry(14.0, 0.55, 7.6), matAlero);
+  alero.position.set(0, 4.2, 2.2);
+  alero.castShadow = true;
+  grupo.add(alero);
+
+  // Franja corporativa verde esmeralda y dorada en el alero
+  const matBandaVerde = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+  const bandaVerde = new THREE.Mesh(new THREE.BoxGeometry(14.1, 0.32, 7.7), matBandaVerde);
+  bandaVerde.position.set(0, 4.2, 2.2);
+  grupo.add(bandaVerde);
+
+  const matNeonAmarillo = new THREE.MeshBasicMaterial({ color: 0xffeb3b });
+  const lineaNeon = new THREE.Mesh(new THREE.BoxGeometry(14.15, 0.06, 7.75), matNeonAmarillo);
+  lineaNeon.position.set(0, 4.05, 2.2);
+  grupo.add(lineaNeon);
+
+  // Columnas estructurales de acero reforzado (4 columnas)
+  const matCol = new THREE.MeshLambertMaterial({ color: 0xb0bec5 });
+  [[-4.5, 0.2], [-4.5, 4.2], [4.5, 0.2], [4.5, 4.2]].forEach(([cx, cz]) => {
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 3.9, 12), matCol);
+    col.position.set(cx, 2.05, cz);
+    col.castShadow = true;
     grupo.add(col);
+
+    // Protección de base de hormigón en la columna
+    const baseCol = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.45, 0.4, 12), matCordon);
+    baseCol.position.set(cx, 0.28, cz);
+    grupo.add(baseCol);
   });
+
+  // Plafones de luz LED bajo la marquesina
+  const matLuzLed = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  [[-3.0, 1.2], [-3.0, 3.2], [0, 1.2], [0, 3.2], [3.0, 1.2], [3.0, 3.2]].forEach(([lx, lz]) => {
+    const panelLuz = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.6), matLuzLed);
+    panelLuz.position.set(lx, 3.9, lz);
+    grupo.add(panelLuz);
+  });
+
+  // 3. Islas de Surtidores de Combustible (2 islas dobles con 4 dispensadores)
+  const matIsla = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
+  const matSurtidor = new THREE.MeshLambertMaterial({ color: 0x1b5e20 });
+  const matDisplay = new THREE.MeshBasicMaterial({ color: 0x76ff03 });
+
+  [-3.0, 3.0].forEach(ix => {
+    // Tarima de la isla
+    const islaPiso = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.3, 5.4), matIsla);
+    islaPiso.position.set(ix, 0.23, 2.2);
+    grupo.add(islaPiso);
+
+    // Surtidores (2 por isla)
+    [-1.3, 1.3].forEach(sz => {
+      const bomba = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.6, 0.9), matSurtidor);
+      bomba.position.set(ix, 1.15, 2.2 + sz);
+      bomba.castShadow = true;
+      grupo.add(bomba);
+
+      // Pantalla digital
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.35, 0.5), matDisplay);
+      visor.position.set(ix, 1.5, 2.2 + sz);
+      grupo.add(visor);
+
+      // Mangueras laterales
+      const manguera = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 6), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+      manguera.position.set(ix + 0.38, 1.0, 2.2 + sz);
+      grupo.add(manguera);
+    });
+  });
+
+  // 4. Tienda de Conveniencia "Katueté Express 24h" en la parte trasera
+  const matTiendaPared = new THREE.MeshLambertMaterial({ color: 0x263238 });
+  const tienda = new THREE.Mesh(new THREE.BoxGeometry(11.5, 3.6, 4.6), matTiendaPared);
+  tienda.position.set(0, 1.88, -4.5);
+  tienda.castShadow = true;
+  grupo.add(tienda);
+
+  // Alero y marquesina de la tienda
+  const aleroTienda = new THREE.Mesh(new THREE.BoxGeometry(11.8, 0.35, 4.9), matBandaVerde);
+  aleroTienda.position.set(0, 3.75, -4.5);
+  grupo.add(aleroTienda);
+
+  // Letrero luminoso de la tienda
+  const letreroTienda = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.7, 0.15), new THREE.MeshBasicMaterial({ color: 0x43a047 }));
+  letreroTienda.position.set(0, 3.4, -2.12);
+  grupo.add(letreroTienda);
+
+  // Fachada vidriada y vitrinas luminosas
+  const matVidrioTienda = new THREE.MeshLambertMaterial({ color: 0xb2ebf2, transparent: true, opacity: 0.75 });
+  const ventanalTienda = new THREE.Mesh(new THREE.BoxGeometry(8.5, 2.3, 0.1), matVidrioTienda);
+  ventanalTienda.position.set(-0.8, 1.45, -2.15);
+  grupo.add(ventanalTienda);
+
+  // Puertas automáticas dobles
+  const matPuerta = new THREE.MeshLambertMaterial({ color: 0x37474f });
+  const puertaMarco = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 0.12), matPuerta);
+  puertaMarco.position.set(3.8, 1.35, -2.15);
+  grupo.add(puertaMarco);
+
+  // Unidades de climatización / aire en el techo de la tienda
+  const matAC = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
+  [-2.5, 2.5].forEach(acX => {
+    const unidadAC = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.0), matAC);
+    unidadAC.position.set(acX, 4.3, -4.5);
+    grupo.add(unidadAC);
+  });
+
+  // 5. Totem / Monolito de Precios de Combustibles en la esquina frontal
+  const matTotem = new THREE.MeshLambertMaterial({ color: 0x1b5e20 });
+  const posteTotem = new THREE.Mesh(new THREE.BoxGeometry(1.3, 5.4, 0.45), matTotem);
+  posteTotem.position.set(6.2, 2.7, 5.8);
+  posteTotem.castShadow = true;
+  grupo.add(posteTotem);
+
+  const displayDiesel = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 0.48), new THREE.MeshBasicMaterial({ color: 0x00e676 }));
+  displayDiesel.position.set(6.2, 3.6, 5.8);
+  grupo.add(displayDiesel);
+
+  const displayNafta = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 0.48), new THREE.MeshBasicMaterial({ color: 0xff1744 }));
+  displayNafta.position.set(6.2, 2.9, 5.8);
+  grupo.add(displayNafta);
+
+  // 6. Calibrador de Aire y Agua para Neumáticos
+  const torreAire = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.4, 0.35), new THREE.MeshLambertMaterial({ color: 0x0288d1 }));
+  torreAire.position.set(-6.2, 0.78, -1.5);
+  grupo.add(torreAire);
+
+  // 7. Camioneta pickup reabasteciendo combustible en la isla
+  const autoGrupo = new THREE.Group();
+  const chasis = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.75, 3.4), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+  chasis.position.y = 0.55;
+  autoGrupo.add(chasis);
+
+  const cabina = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.7, 1.8), new THREE.MeshLambertMaterial({ color: 0x212121 }));
+  cabina.position.set(0, 1.15, -0.3);
+  autoGrupo.add(cabina);
+
+  const matRueda = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  [[-0.9, -1.0], [0.9, -1.0], [-0.9, 1.0], [0.9, 1.0]].forEach(([wx, wz]) => {
+    const rueda = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.24, 12), matRueda);
+    rueda.rotation.z = Math.PI / 2;
+    rueda.position.set(wx, 0.32, wz);
+    autoGrupo.add(rueda);
+  });
+  autoGrupo.position.set(-4.6, 0.08, 2.2);
+  grupo.add(autoGrupo);
 
   grupo.rotation.y = rot;
   return grupo;
@@ -2016,14 +2358,15 @@ function criarMunicipalidad(rot) {
 
 function criarCaixaDAgua() {
   const grupo = new THREE.Group();
-  const tanque = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 2.0, 16), new THREE.MeshLambertMaterial({ color: 0x0288d1 }));
-  tanque.position.y = 5.2;
+  // Modelo 2x2 (huella 8.0m): tanque de agua ampliado
+  const tanque = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 3.0, 16), new THREE.MeshLambertMaterial({ color: 0x0288d1 }));
+  tanque.position.y = 7.0;
   grupo.add(tanque);
 
   const matFerro = new THREE.MeshLambertMaterial({ color: 0x455a64 });
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([px, pz]) => {
-    const perna = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4.5, 6), matFerro);
-    perna.position.set(px, 2.25, pz);
+  [[-2, -2], [2, -2], [-2, 2], [2, 2]].forEach(([px, pz]) => {
+    const perna = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 6.5, 6), matFerro);
+    perna.position.set(px, 3.25, pz);
     grupo.add(perna);
   });
 
@@ -2483,7 +2826,62 @@ function criarMeshCarroSimulado(colorCarro) {
   return carroGrupo;
 }
 
-function criarMeshPeatonSimulado(colorCamisa) {
+const HABITANTES_OFICIALES_KATUETE = [
+  { nombre: 'Ramón Benítez', trabajo: 'Panadero', empresa: 'Panadería Central', icono: '🥖', color: 0xffb74d, frase: '¡Horneando chipa fresca y baguettes calientes!' },
+  { nombre: 'Dra. Elena Duarte', trabajo: 'Médica Cirujana', empresa: 'Hospital Katueté', icono: '🩺', color: 0x4dd0e1, frase: 'Cuidando la salud de toda la comunidad.' },
+  { nombre: 'Oficial Marcos Vera', trabajo: 'Policía Municipal', empresa: 'Comisaría', icono: '👮', color: 0x1565c0, frase: 'Manteniendo el orden y la seguridad en las calles.' },
+  { nombre: 'Ing. Gustavo Ortiz', trabajo: 'Ing. Eléctrico', empresa: 'Usina Eléctrica', icono: '⚡', color: 0xffca28, frase: 'Garantizando energía limpia e ininterrumpida.' },
+  { nombre: 'Camila Villalba', trabajo: 'Vendedora de Moda', empresa: 'Boutique Katueté', icono: '👗', color: 0xec407a, frase: 'Las mejores tendencias de temporada.' },
+  { nombre: 'Lucas Almada', trabajo: 'Cajero Bancario', empresa: 'Banco Nacional', icono: '💼', color: 0x2e7d32, frase: 'Gestionando ahorros y créditos de inversión.' },
+  { nombre: 'Don Jacinto Rivas', trabajo: 'Mecánico', empresa: 'Taller y Gasolinera', icono: '🔧', color: 0xef5350, frase: 'Afinación de motores y cambio de filtros al día.' },
+  { nombre: 'Valerio Da Silva', trabajo: 'Agricultor', empresa: 'Campos de Soja', icono: '🌾', color: 0x8d6e63, frase: 'Cosechando los frutos de nuestra bendecida tierra.' },
+  { nombre: 'Chef Marcio Sosa', trabajo: 'Chef Gourmet', empresa: 'Restaurante Katueté', icono: '🍳', color: 0xff7043, frase: 'Preparando asado a la estaca y platos tradicionales.' },
+  { nombre: 'Beatriz Cano', trabajo: 'Almacenera', empresa: 'Supermercado Central', icono: '🛒', color: 0x26a69a, frase: 'Góndolas repletas y los mejores precios locales.' },
+  { nombre: 'Néstor Cardozo', trabajo: 'Chofer de Autobús', empresa: 'Línea Urbana 1', icono: '🚌', color: 0x5c6bc0, frase: 'Conectando todos los barrios de Katueté.' },
+  { nombre: 'Arq. Sofía Méndez', trabajo: 'Arquitecta Urbana', empresa: 'Municipalidad', icono: '📐', color: 0x7e57c2, frase: 'Planificando el crecimiento moderno de la ciudad.' },
+  { nombre: 'Aparicio Giménez', trabajo: 'Jardinero', empresa: 'Parque Central', icono: '🌻', color: 0x66bb6a, frase: 'Cuidando las flores y el césped del gran parque.' },
+  { nombre: 'Profa. Carmen Núñez', trabajo: 'Docente', empresa: 'Escuela Graduada', icono: '📚', color: 0xab47bc, frase: 'Educando el futuro de nuestra comunidad.' },
+  { nombre: 'Dr. Diego Barreto', trabajo: 'Veterinario', empresa: 'Clínica San Roque', icono: '🐾', color: 0x26c6da, frase: 'Atención a mascotas y ganado de la región.' },
+  { nombre: 'Sgto. Julio Cáceres', trabajo: 'Bombero Voluntario', empresa: 'Cuartel Katueté', icono: '🚒', color: 0xd32f2f, frase: 'Listos para socorrer cualquier emergencia 24/7.' },
+  { nombre: 'Osvaldo Romero', trabajo: 'Operador de Grúa', empresa: 'Construcciones', icono: '🏗️', color: 0xffa726, frase: 'Levantando las nuevas mansiones y edificios.' },
+  { nombre: 'Silvia Franco', trabajo: 'Farmacéutica', empresa: 'Farmacia Municipal', icono: '💊', color: 0x00897b, frase: 'Medicamentos y asesoramiento profesional.' },
+  { nombre: 'Aníbal Paredes', trabajo: 'Cartero', empresa: 'Correo Postal', icono: '✉️', color: 0x42a5f5, frase: 'Entregando encomiendas a cada rincón.' },
+  { nombre: 'Lorena Bogado', trabajo: 'Locutora Radial', empresa: 'Radio Katueté 98.5', icono: '🎙️', color: 0xd81b60, frase: 'Transmitiendo la mejor música y noticias en vivo.' }
+];
+
+function criarEtiquetaHabitante(nombre, trabajo, icono) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 70;
+  const ctx = canvas.getContext('2d');
+  
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+  ctx.roundRect(4, 4, 248, 62, 14);
+  ctx.fill();
+
+  ctx.strokeStyle = '#4caf50';
+  ctx.lineWidth = 3;
+  ctx.roundRect(4, 4, 248, 62, 14);
+  ctx.stroke();
+
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillStyle = '#81c784';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${icono} ${trabajo}`, 128, 28);
+
+  ctx.font = '16px sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(nombre, 128, 52);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(2.4, 0.65, 1.0);
+  sprite.position.y = 1.45;
+  return sprite;
+}
+
+function criarMeshPeatonSimulado(colorCamisa, habitanteInfo = null) {
   const pGrupo = new THREE.Group();
   const matCamisa = new THREE.MeshLambertMaterial({ color: colorCamisa });
   const matPantalon = new THREE.MeshLambertMaterial({ color: 0x263238 });
@@ -2510,6 +2908,13 @@ function criarMeshPeatonSimulado(colorCamisa) {
   const cabello = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.22), matCabello);
   cabello.position.y = 1.0;
   pGrupo.add(cabello);
+
+  // Placa flotante de trabajo / profesión
+  if (habitanteInfo) {
+    const badge = criarEtiquetaHabitante(habitanteInfo.nombre, habitanteInfo.trabajo, habitanteInfo.icono);
+    pGrupo.add(badge);
+    pGrupo.userData = { habitante: habitanteInfo };
+  }
 
   return pGrupo;
 }
@@ -2562,12 +2967,12 @@ function iniciarSistemaTransito() {
     });
   }
 
-  // Instanciar 26 Peatones paseando por las aceras
-  const totalPeatones = 26;
+  // Instanciar los 20 Habitantes Oficiales de Katueté con sus trabajos diversos
+  const totalPeatones = HABITANTES_OFICIALES_KATUETE.length;
   for (let i = 0; i < totalPeatones; i++) {
     const celda = calles[Math.floor(Math.random() * calles.length)];
-    const color = transitoKatuete.coloresRopa[i % transitoKatuete.coloresRopa.length];
-    const mesh = criarMeshPeatonSimulado(color);
+    const habInfo = HABITANTES_OFICIALES_KATUETE[i];
+    const mesh = criarMeshPeatonSimulado(habInfo.color, habInfo);
     transitoKatuete.grupo.add(mesh);
 
     const { x, z } = gradeParaMundo(celda.gx, celda.gz);
@@ -2576,15 +2981,16 @@ function iniciarSistemaTransito() {
 
     transitoKatuete.peatones.push({
       mesh,
+      info: habInfo,
       gx: celda.gx,
       gz: celda.gz,
       x,
       z,
       dx: d[0],
       dz: d[1],
-      velocidad: 1.4 + Math.random() * 0.8,
-      offsetSidewalk: (Math.random() > 0.5 ? 1 : -1) * 1.55,
-      animTimer: Math.random() * 10
+      velocidad: 1.35 + (i % 4) * 0.15,
+      offsetSidewalk: (i % 2 === 0 ? 1 : -1) * 1.55,
+      animTimer: i * 1.5
     });
   }
 
@@ -3036,9 +3442,19 @@ function verificarEspacioDisponible(gx, gz, w = 1, h = 1) {
       const cz = gz + dz;
       if (!celulaValida(cx, cz)) return false;
       if (estado.grade[cz]?.[cx] !== null) return false;
+      if (celulasBosque.has(`${cx},${cz}`)) return false;
     }
   }
   return true;
+}
+
+function verificarBosqueEnArea(gx, gz, w = 1, h = 1) {
+  for (let dz = 0; dz < h; dz++) {
+    for (let dx = 0; dx < w; dx++) {
+      if (celulasBosque.has(`${gx + dx},${gz + dz}`)) return true;
+    }
+  }
+  return false;
 }
 
 function actualizarVecinosEstrada(gx, gz) {
@@ -3058,9 +3474,10 @@ function instanciarObjetoLocal(tipo, gx, gz, rot = 0, inquilino = null, autor = 
   const w = dims.w;
   const h = dims.h;
 
-  // Si ya existía algún elemento en el área de la huella, retirarlo
+  // Si existía bosque o algún elemento en el área de la huella, retirarlo
   for (let dz = 0; dz < h; dz++) {
     for (let dx = 0; dx < w; dx++) {
+      removerBosqueLocal(gx + dx, gz + dz);
       if (estado.grade[gz + dz]?.[gx + dx]) {
         eliminarObjetoLocal(gx + dx, gz + dz);
       }
@@ -4086,6 +4503,11 @@ function procesarClicEnGrilla(gx, gz) {
     }
 
     const dims = obtenerDimensionesObjeto(ferr);
+    if (verificarBosqueEnArea(gx, gz, dims.w, dims.h)) {
+      mostrarNotificacion('🌲 Debes desmalezar el bosque antes de construir aquí (150 Oikos por lote).');
+      tocarSonido('error');
+      return;
+    }
     if (!verificarEspacioDisponible(gx, gz, dims.w, dims.h)) {
       mostrarNotificacion(`⚠️ Terreno ocupado o espacio insuficiente para huella de (${dims.w}×${dims.h}).`);
       tocarSonido('error');
@@ -4155,6 +4577,13 @@ function alquilarCasaLocal(gx, gz) {
 
   if (celda.autor === jugadorLocal.nombre && !jugadorLocal.esAdmin) {
     mostrarNotificacion('ℹ️ Esta propiedad ya te pertenece. Puedes configurarla en alquiler para que otros ciudadanos te paguen.');
+    return;
+  }
+
+  // Verificar límite de alquileres simultáneos (máx. 3 propiedades)
+  jugadorLocal.casasAlquiladas = jugadorLocal.casasAlquiladas.filter(c => c.expira > Date.now());
+  if (jugadorLocal.casasAlquiladas.length >= 3) {
+    mostrarNotificacion('⚠️ Límite de alquiler alcanzado (máx. 3 propiedades simultáneas).');
     return;
   }
 
@@ -4528,8 +4957,24 @@ function mostrarDetallesCelula(gx, gz) {
     : `<span style="color:var(--cor-texto-dim)">📍 Sector sin barrio asignado</span><br/>`;
 
   if (!celda) {
-    titulo.textContent = '🌿 Terreno Libre';
-    detalles.innerHTML = `Sector: (${gx}, ${gz})<br/>${infoBarrio}<small>Selecciona 'Construir' en el menú inferior para edificar.</small>`;
+    if (celulasBosque.has(`${gx},${gz}`)) {
+      titulo.textContent = '🌲 Bosque Silvestre';
+      detalles.innerHTML = `
+        Sector: (${gx}, ${gz})<br/>
+        ${infoBarrio}
+        <span style="color:#a5d6a7;">Vegetación silvestre densa con árboles nativos. Para habilitar y edificar en este lote debes desmalezar el terreno.</span><br/>
+        <button type="button" id="btn-limpiar-bosque-inline" style="background:#2e7d32; color:#fff; border:none; padding:9px 12px; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:8px; width:100%;">🪓 Desmalezar Terreno (150 Ø)</button>
+      `;
+      card.style.display = 'block';
+      const btnLimp = document.getElementById('btn-limpiar-bosque-inline');
+      if (btnLimp) {
+        btnLimp.onclick = () => solicitarLimpiezaTerreno(gx, gz);
+      }
+      return;
+    }
+
+    titulo.textContent = '🌿 Pastizal Libre';
+    detalles.innerHTML = `Sector: (${gx}, ${gz})<br/>${infoBarrio}<small>Pastura natural despejada. Selecciona 'Construir' en el menú inferior para edificar.</small>`;
     card.style.display = 'block';
     const btnEdit = card.querySelector('.btn-editar-barrio-inline');
     if (btnEdit && barrio) {
@@ -4650,7 +5095,8 @@ function mostrarDetallesCelula(gx, gz) {
     } else {
       if (!celda.inquilino) {
         btnAlquilar.style.display = 'block';
-        btnAlquilar.textContent = `🔑 Alquilar Vivienda (${precioAlquiler} Ø por ${duracionMin} min)`;
+        const slotsActivos = jugadorLocal.casasAlquiladas.filter(c => c.expira > Date.now()).length;
+        btnAlquilar.textContent = `🔑 Alquilar Vivienda (${precioAlquiler} Ø por ${duracionMin} min) — Slots: ${slotsActivos}/3`;
         btnAlquilar.onclick = () => alquilarCasaLocal(gx, gz);
       } else if (esInquilinoActual) {
         btnDesalojar.style.display = 'block';
@@ -5829,6 +6275,9 @@ document.getElementById('dock-btn-inventario')?.addEventListener('click', () => 
   abrirModalInventario();
   actualizarDockActivo('dock-btn-inventario');
 });
+
+// Botón de Mochila en el dock (acceso directo al inventario personal)
+document.getElementById('dock-btn-mochila')?.addEventListener('click', () => abrirModalInventario());
 
 // Aislamiento táctil de clics en los modales
 ['modal-comercio', 'modal-banco', 'modal-inventario'].forEach(idModal => {
