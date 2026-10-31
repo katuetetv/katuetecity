@@ -114,6 +114,12 @@ function inicializarConexionSocket() {
       if (datos?.mapa && Array.isArray(datos.mapa) && datos.mapa.length > 0) {
         datos.mapa.forEach(item => {
           instanciarObjetoLocal(item.tipo, item.x, item.z, item.rot || 0, item.inquilino, item.autor);
+          const c = estado.grade[item.z]?.[item.x];
+          if (c) {
+            c.alquilerExpira = item.alquilerExpira || null;
+            c.precioAlquiler = item.precioAlquiler || 150;
+            c.duracionAlquilerSegundos = item.duracionAlquilerSegundos || 180;
+          }
         });
         desenharMiniMapa();
       }
@@ -167,12 +173,37 @@ function inicializarConexionSocket() {
       desenharMiniMapa();
     });
 
-    // 6. Alquileres replicados
+    // 6. Alquileres replicados en tiempo real
     socket.on('casa_actualizada', (datos) => {
-      const celda = estado.grade[datos.gz]?.[datos.gx];
+      let celda = estado.grade[datos.gz]?.[datos.gx];
       if (celda) {
-        celda.inquilino = datos.inquilino;
-        actualizarMeshCelda(datos.gx, datos.gz);
+        if (celda.esHijo) celda = estado.grade[celda.rootZ]?.[celda.rootX];
+        if (celda) {
+          celda.inquilino = datos.inquilino;
+          celda.alquilerExpira = datos.alquilerExpira || null;
+          if (datos.precioAlquiler) celda.precioAlquiler = datos.precioAlquiler;
+          if (datos.duracionAlquilerSegundos) celda.duracionAlquilerSegundos = datos.duracionAlquilerSegundos;
+          actualizarMeshCelda(datos.gx, datos.gz);
+          if (estado.celulaSelecionada && estado.celulaSelecionada.gx === datos.gx && estado.celulaSelecionada.gz === datos.gz) {
+            mostrarDetallesCelula(datos.gx, datos.gz);
+          }
+        }
+      }
+    });
+
+    // 6.1 Rotación replicada en tiempo real
+    socket.on('objeto_rotado', (datos) => {
+      let celda = estado.grade[datos.gz]?.[datos.gx];
+      if (celda) {
+        if (celda.esHijo) celda = estado.grade[celda.rootZ]?.[celda.rootX];
+        if (celda) {
+          celda.rot = datos.rot;
+          actualizarMeshCelda(datos.gx, datos.gz);
+          desenharMiniMapa();
+          if (estado.celulaSelecionada && estado.celulaSelecionada.gx === datos.gx && estado.celulaSelecionada.gz === datos.gz) {
+            mostrarDetallesCelula(datos.gx, datos.gz);
+          }
+        }
       }
     });
 
@@ -314,7 +345,7 @@ const CATALOGO_COMERCIOS = {
       { id: 'linterna', nombre: 'Linterna Eléctrica', icono: '🔦', desc: 'Accesorio de exploración', precio: 75, precioVenta: 35, tipo: 'accesorio' },
       { id: 'mochila_cuero', nombre: 'Mochila de Explorador', icono: '🎒', desc: 'Aumenta tu capacidad', precio: 300, precioVenta: 150, tipo: 'accesorio' }
     ],
-    empleo: { id: 'dependiente_tienda', titulo: 'Dependiente de Mostrador', empresa: 'Tienda Comercial', salario: 380, duracion: 10 }
+    empleo: { id: 'dependiente_tienda', titulo: 'Dependiente de Mostrador', empresa: 'Tienda Comercial', salario: 380, duracion: 10, desc: 'Atención al cliente y reposición de provisiones.' }
   },
   padaria: {
     titulo: '🥖 Panadería Katueté',
@@ -325,7 +356,7 @@ const CATALOGO_COMERCIOS = {
       { id: 'cafe_expreso', nombre: 'Café Expreso Caliente', icono: '☕', desc: 'Energía para turnos de trabajo', precio: 20, precioVenta: 10, tipo: 'alimento' },
       { id: 'torta_miel', nombre: 'Torta Dulce de Miel', icono: '🍰', desc: 'Postre artesanal delicioso', precio: 65, precioVenta: 30, tipo: 'alimento' }
     ],
-    empleo: { id: 'panadero', titulo: 'Maestro Panadero y Pastelero', empresa: 'Panadería Katueté', salario: 420, duracion: 12 }
+    empleo: { id: 'panadero', titulo: 'Maestro Panadero y Pastelero', empresa: 'Panadería Katueté', salario: 420, duracion: 12, desc: 'Elaboración de chipás tradicionales y panes artesanales.' }
   },
   mercado: {
     titulo: '🛒 Supermercado Municipal Katueté',
@@ -336,7 +367,7 @@ const CATALOGO_COMERCIOS = {
       { id: 'carne_selecta', nombre: 'Corte de Carne Vacuna', icono: '🥩', desc: 'Proteína fresca de primera', precio: 95, precioVenta: 45, tipo: 'alimento' },
       { id: 'aceite_cocina', nombre: 'Botella de Aceite Puro', icono: '🫒', desc: 'Insumo culinario esencial', precio: 50, precioVenta: 25, tipo: 'alimento' }
     ],
-    empleo: { id: 'cajero_mercado', titulo: 'Cajero y Repositor de Mercadería', empresa: 'Supermercado Municipal', salario: 450, duracion: 11 }
+    empleo: { id: 'cajero_mercado', titulo: 'Cajero y Repositor', empresa: 'Supermercado Municipal', salario: 450, duracion: 11, desc: 'Cobro en cajas rápidas y acomodación de góndolas de alimentos.' }
   },
   loja_roupa: {
     titulo: '👕 Boutique & Tienda de Modas',
@@ -347,7 +378,7 @@ const CATALOGO_COMERCIOS = {
       { id: 'camisa_campestre', nombre: 'Camisa Campestre de Lino', icono: '👕', desc: 'Comodidad para el día a día', precio: 140, precioVenta: 70, tipo: 'prenda' },
       { id: 'botas_cuero', nombre: 'Botas de Cuero Curtido', icono: '👢', desc: 'Calzado resistente para la ciudad', precio: 220, precioVenta: 110, tipo: 'prenda' }
     ],
-    empleo: { id: 'asesor_moda', titulo: 'Asesor de Imagen y Ventas', empresa: 'Boutique de Modas', salario: 460, duracion: 14 }
+    empleo: { id: 'asesor_moda', titulo: 'Asesor de Imagen y Ventas', empresa: 'Boutique de Modas', salario: 460, duracion: 14, desc: 'Confección y recomendación de atuendos para ciudadanos.' }
   },
   restaurante: {
     titulo: '🍽️ Restaurante Tradicional Katueté',
@@ -357,7 +388,7 @@ const CATALOGO_COMERCIOS = {
       { id: 'sopa_paraguaya', nombre: 'Sopa Paraguaya Auténtica', icono: '🥧', desc: 'Torta salada de queso y maíz', precio: 55, precioVenta: 25, tipo: 'alimento' },
       { id: 'empanadas_carne', nombre: 'Docena de Empanadas', icono: '🥟', desc: 'Almuerzo rápido y sabroso', precio: 60, precioVenta: 30, tipo: 'alimento' }
     ],
-    empleo: { id: 'chef_cocina', titulo: 'Jefe de Cocina y Parrillero', empresa: 'Restaurante Tradicional', salario: 480, duracion: 13 }
+    empleo: { id: 'chef_cocina', titulo: 'Jefe de Cocina y Parrillero', empresa: 'Restaurante Tradicional', salario: 480, duracion: 13, desc: 'Preparación de asados tradicionales y platos típicos de Katueté.' }
   },
   posto: {
     titulo: '⛽ Estación de Servicios y Combustibles',
@@ -366,7 +397,7 @@ const CATALOGO_COMERCIOS = {
       { id: 'bidon_nafta', nombre: 'Bidón de Nafta Súper', icono: '⛽', desc: 'Combustible de alta pureza', precio: 150, precioVenta: 75, tipo: 'suministro' },
       { id: 'aceite_motor', nombre: 'Lubricante Sintético', icono: '🛢️', desc: 'Mantenimiento preventivo', precio: 110, precioVenta: 55, tipo: 'suministro' }
     ],
-    empleo: { id: 'operario_pista', titulo: 'Operario de Pista y Mantenimiento', empresa: 'Estación de Servicios', salario: 410, duracion: 10 }
+    empleo: { id: 'operario_pista', titulo: 'Operario de Pista', empresa: 'Estación de Servicios', salario: 410, duracion: 10, desc: 'Carga de combustible y revisión de fluidos a vehículos.' }
   },
   loja_veiculos: {
     titulo: '🚗 Concesionaria Central de Vehículos',
@@ -377,7 +408,7 @@ const CATALOGO_COMERCIOS = {
       { id: 'auto_popular', nombre: 'Automóvil Sedán Familiar', icono: '🚗', desc: 'Confort y velocidad para la ciudad', precio: 2600, precioVenta: 1300, tipo: 'vehiculo', velocidad: 1.45 },
       { id: 'camioneta_4x4', nombre: 'Camioneta Pickup 4x4', icono: '🚙', desc: 'Fuerza todoterreno para todo Katueté', precio: 4800, precioVenta: 2400, tipo: 'vehiculo', velocidad: 1.55 }
     ],
-    empleo: { id: 'mecanico_concesionaria', titulo: 'Técnico Mecánico y Vendedor Automotriz', empresa: 'Concesionaria Central', salario: 650, duracion: 18 }
+    empleo: { id: 'mecanico_concesionaria', titulo: 'Técnico Automotriz y Ventas', empresa: 'Concesionaria Central', salario: 650, duracion: 18, desc: 'Ajuste mecánico y demostración de rodados a compradores.' }
   }
 };
 
@@ -3373,32 +3404,39 @@ function iniciarTurnoTrabajoLocal() {
 }
 
 function alquilarCasaLocal(gx, gz) {
-  if (!jugadorLocal.uid) {
-    mostrarNotificacion('🔒 Inicia sesión para alquilar una propiedad. Redirigiendo a Login...');
-    setTimeout(() => { window.location.href = 'login.html'; }, 1000);
-    return;
-  }
-
-  const celda = estado.grade[gz]?.[gx];
+  let celda = estado.grade[gz]?.[gx];
+  if (celda && celda.esHijo) celda = estado.grade[celda.rootZ]?.[celda.rootX];
   if (!celda || !['casa', 'sobrado', 'predio'].includes(celda.tipo)) return;
 
-  if (celda.inquilino !== null) {
-    mostrarNotificacion('⚠️ Esta vivienda ya se encuentra alquilada.');
+  if (celda.autor === jugadorLocal.nombre && !jugadorLocal.esAdmin) {
+    mostrarNotificacion('ℹ️ Esta propiedad ya te pertenece. Puedes configurarla en alquiler para que otros ciudadanos te paguen.');
     return;
   }
 
-  if (jugadorLocal.oikos < COSTO_ALQUILER_CICLO) {
-    mostrarNotificacion(`❌ Saldo insuficiente (${COSTO_ALQUILER_CICLO} Oikos requeridos).`);
+  if (celda.inquilino !== null) {
+    mostrarNotificacion(`⚠️ Esta vivienda ya se encuentra alquilada por ${celda.inquilino}.`);
+    return;
+  }
+
+  const costo = celda.precioAlquiler || 150;
+  const duracion = celda.duracionAlquilerSegundos || 180;
+  const duracionMin = Math.round(duracion / 60);
+
+  if (jugadorLocal.oikos < costo) {
+    mostrarNotificacion(`❌ Saldo insuficiente (${costo.toLocaleString('es-PY')} Oikos requeridos).`);
     tocarSonido('error');
     return;
   }
 
-  jugadorLocal.oikos -= COSTO_ALQUILER_CICLO;
+  // Descontar cobro al inquilino
+  jugadorLocal.oikos -= costo;
   celda.inquilino = jugadorLocal.nombre;
-  jugadorLocal.casasAlquiladas.push({ gx, gz });
+  const tiempoFin = Date.now() + (duracion * 1000);
+  celda.alquilerExpira = tiempoFin;
+  jugadorLocal.casasAlquiladas.push({ gx, gz, expira: tiempoFin });
 
   if (socket && socket.connected) {
-    socket.emit('alquilar_vivienda', { gx, gz });
+    socket.emit('alquilar_vivienda', { gx, gz, precio: costo, duracionSegundos: duracion });
   }
 
   actualizarMeshCelda(gx, gz);
@@ -3406,14 +3444,52 @@ function alquilarCasaLocal(gx, gz) {
   mostrarDetallesCelula(gx, gz);
   guardarCiudadEnStorage(false);
   tocarSonido('monedas');
-  mostrarNotificacion(`🔑 ¡Has alquilado la vivienda en (${gx}, ${gz})!`);
+  mostrarNotificacion(`🔑 ¡Has alquilado la vivienda en (${gx}, ${gz}) por ${duracionMin} min! (${costo} Ø pagados a ${celda.autor || 'Municipio'})`);
+}
+
+function configurarAlquilerLocal(gx, gz, precio, duracionSegundos) {
+  let celda = estado.grade[gz]?.[gx];
+  if (celda && celda.esHijo) celda = estado.grade[celda.rootZ]?.[celda.rootX];
+  if (!celda) return;
+
+  const esDueno = (celda.autor === jugadorLocal.nombre) || jugadorLocal.esAdmin;
+  if (!esDueno) {
+    mostrarNotificacion('🔒 Solo el propietario que construyó la vivienda puede configurar su alquiler.');
+    return;
+  }
+
+  celda.precioAlquiler = Math.max(10, Math.floor(precio));
+  celda.duracionAlquilerSegundos = Math.max(30, Math.floor(duracionSegundos));
+
+  if (socket && socket.connected) {
+    socket.emit('configurar_alquiler', {
+      gx, gz,
+      precio: celda.precioAlquiler,
+      duracionSegundos: celda.duracionAlquilerSegundos
+    });
+  }
+
+  guardarCiudadEnStorage(false);
+  tocarSonido('monedas');
+  mostrarNotificacion(`🏷️ Oferta de alquiler guardada: ${celda.precioAlquiler} Ø por ${Math.round(celda.duracionAlquilerSegundos/60)} minutos.`);
+  mostrarDetallesCelula(gx, gz);
 }
 
 function desalojarCasaLocal(gx, gz) {
-  const celda = estado.grade[gz]?.[gx];
-  if (!celda || celda.inquilino !== jugadorLocal.nombre) return;
+  let celda = estado.grade[gz]?.[gx];
+  if (celda && celda.esHijo) celda = estado.grade[celda.rootZ]?.[celda.rootX];
+  if (!celda) return;
+
+  const esInquilino = celda.inquilino === jugadorLocal.nombre;
+  const esDueno = (celda.autor === jugadorLocal.nombre) || jugadorLocal.esAdmin;
+
+  if (!esInquilino && !esDueno) {
+    mostrarNotificacion('🔒 No tienes autorización para desalojar esta vivienda.');
+    return;
+  }
 
   celda.inquilino = null;
+  celda.alquilerExpira = null;
   jugadorLocal.casasAlquiladas = jugadorLocal.casasAlquiladas.filter(c => !(c.gx === gx && c.gz === gz));
 
   if (socket && socket.connected) {
@@ -3423,32 +3499,40 @@ function desalojarCasaLocal(gx, gz) {
   actualizarMeshCelda(gx, gz);
   mostrarDetallesCelula(gx, gz);
   guardarCiudadEnStorage(false);
-  mostrarNotificacion('🚪 Has entregado las llaves de la vivienda.');
+  tocarSonido('monedas');
+  mostrarNotificacion('🚪 Vivienda desocupada y disponible para nuevos inquilinos.');
 }
 
 function iniciarCicloAlquilerLocal() {
+  // Comprobación de vencimiento de contratos temporales cada 2 segundos
   setInterval(() => {
-    if (jugadorLocal.casasAlquiladas.length === 0) return;
+    const ahora = Date.now();
+    for (let z = 0; z < TAMANHO_GRADE; z++) {
+      for (let x = 0; x < TAMANHO_GRADE; x++) {
+        const c = estado.grade[z]?.[x];
+        if (c && c.inquilino && c.alquilerExpira && ahora >= c.alquilerExpira) {
+          const eraInquilino = c.inquilino === jugadorLocal.nombre;
+          const eraDueno = c.autor === jugadorLocal.nombre;
+          c.inquilino = null;
+          c.alquilerExpira = null;
+          actualizarMeshCelda(x, z);
 
-    const totalCobro = jugadorLocal.casasAlquiladas.length * COSTO_ALQUILER_CICLO;
-    if (jugadorLocal.oikos >= totalCobro) {
-      jugadorLocal.oikos -= totalCobro;
-      actualizarHUD();
-      guardarCiudadEnStorage(false);
-      mostrarNotificacion(`🏠 Pago periódico de alquiler: -${totalCobro} Oikos (${jugadorLocal.casasAlquiladas.length} casas).`);
-    } else {
-      mostrarNotificacion('⚠️ Saldo insuficiente para pagar el alquiler. Tus contratos han sido cancelados.');
-      jugadorLocal.casasAlquiladas.forEach(({ gx, gz }) => {
-        if (estado.grade[gz]?.[gx]) {
-          estado.grade[gz][gx].inquilino = null;
-          actualizarMeshCelda(gx, gz);
+          if (eraInquilino) {
+            jugadorLocal.casasAlquiladas = jugadorLocal.casasAlquiladas.filter(k => !(k.gx === x && k.gz === z));
+            mostrarNotificacion(`⌛ Tu contrato de alquiler en (${x}, ${z}) ha finalizado.`);
+            tocarSonido('error');
+          }
+          if (eraDueno) {
+            mostrarNotificacion(`🔔 El alquiler de tu vivienda en (${x}, ${z}) ha terminado y vuelve a estar libre.`);
+            tocarSonido('monedas');
+          }
+          if (estado.celulaSelecionada && estado.celulaSelecionada.gx === x && estado.celulaSelecionada.gz === z) {
+            mostrarDetallesCelula(x, z);
+          }
         }
-      });
-      jugadorLocal.casasAlquiladas = [];
-      guardarCiudadEnStorage(false);
-      if (estado.celulaSelecionada) mostrarDetallesCelula(estado.celulaSelecionada.gx, estado.celulaSelecionada.gz);
+      }
     }
-  }, 45000);
+  }, 2000);
 }
 
 /* ============================================================
@@ -3723,9 +3807,23 @@ function mostrarDetallesCelula(gx, gz) {
 
   const esVivienda = ['casa', 'sobrado', 'predio'].includes(celda.tipo);
   const esCalle = isQualquerEstrada(gx, gz);
-  const estadoAlquiler = celda.inquilino
-    ? `<span style="color:#ffb74d">Inquilino: <strong>${celda.inquilino}</strong></span>`
-    : `<span style="color:#81c784">Disponible para Alquiler</span>`;
+  const precioAlquiler = celda.precioAlquiler || 150;
+  const duracionSegundos = celda.duracionAlquilerSegundos || 180;
+  const duracionMin = Math.round(duracionSegundos / 60);
+
+  let textoAlquiler = '';
+  if (celda.inquilino) {
+    let tiempoRestanteStr = '';
+    if (celda.alquilerExpira) {
+      const segRest = Math.max(0, Math.floor((celda.alquilerExpira - Date.now()) / 1000));
+      const m = Math.floor(segRest / 60);
+      const s = segRest % 60;
+      tiempoRestanteStr = ` (⏱️ Expira en: <strong id="timer-alquiler-dinamico">${m}m ${s < 10 ? '0' : ''}${s}s</strong>)`;
+    }
+    textoAlquiler = `<span style="color:#ffb74d">Inquilino: <strong>${celda.inquilino}</strong>${tiempoRestanteStr}</span>`;
+  } else {
+    textoAlquiler = `<span style="color:#81c784">Disponible para Alquiler (${precioAlquiler} Ø por ${duracionMin} min)</span>`;
+  }
 
   let nombreTipo = celda.tipo.toUpperCase();
   if (celda.tipo === 'casa') nombreTipo = '🏠 Casa Familiar';
@@ -3752,8 +3850,8 @@ function mostrarDetallesCelula(gx, gz) {
   detalles.innerHTML = `
     Ubicación: Sector (${gx}, ${gz})${celda.w ? ` [${celda.w}×${celda.h} celdas]` : ''}<br/>
     ${infoBarrio}
-    Constructor: <em>${celda.autor || 'Municipio'}</em><br/>
-    ${esVivienda ? `Estado: ${estadoAlquiler}<br/><small>Alquiler: 150 Oikos / ciclo</small>` : ''}
+    Propietario / Constructor: <strong>${celda.autor || 'Municipio'}</strong><br/>
+    ${esVivienda ? `Estado: ${textoAlquiler}<br/><small>Renta fijada: ${precioAlquiler} Oikos / período de ${duracionMin} min</small>` : ''}
     ${celda.tipo === 'estrada_terra' ? `<span style="color:#bcaaa4">Vía rústica de tierra. Puedes mejorarla a empedrado.</span>` : ''}
     ${celda.tipo === 'estrada_empedrado' ? `<span style="color:#90a4ae">Vía empedrada colonial. Puedes mejorarla a asfalto.</span>` : ''}
     ${celda.tipo === 'estrada' ? `<span style="color:#81c784">Vía asfaltada principal de alta velocidad.</span>` : ''}
@@ -3770,13 +3868,49 @@ function mostrarDetallesCelula(gx, gz) {
     };
   }
 
-  // Acciones de Vivienda
+  // Panel y botones de Alquiler Temporal
+  const panelConfigAlquiler = document.getElementById('panel-config-alquiler');
+  const btnDesalojarDueno = document.getElementById('btn-desalojar-dueno');
+  const inputPrecio = document.getElementById('input-precio-alquiler');
+  const selectDuracion = document.getElementById('select-duracion-alquiler');
+  const btnGuardarConfig = document.getElementById('btn-guardar-config-alquiler');
+
+  if (panelConfigAlquiler) panelConfigAlquiler.style.display = 'none';
+  if (btnDesalojarDueno) btnDesalojarDueno.style.display = 'none';
+
   if (esVivienda) {
     zonaAcciones.style.display = 'block';
-    if (!celda.inquilino) {
-      btnAlquilar.style.display = 'block';
-    } else if (celda.inquilino === jugadorLocal.nombre || jugadorLocal.esAdmin) {
-      btnDesalojar.style.display = 'block';
+    const esPropietario = (celda.autor === jugadorLocal.nombre) || (celda.autor === 'Municipio' && jugadorLocal.esAdmin);
+    const esInquilinoActual = celda.inquilino === jugadorLocal.nombre;
+
+    if (esPropietario) {
+      if (panelConfigAlquiler) {
+        panelConfigAlquiler.style.display = 'block';
+        if (inputPrecio) inputPrecio.value = celda.precioAlquiler || 150;
+        if (selectDuracion) selectDuracion.value = celda.duracionAlquilerSegundos || 180;
+        if (btnGuardarConfig) {
+          btnGuardarConfig.onclick = () => {
+            const p = Math.max(10, parseInt(inputPrecio.value) || 150);
+            const d = parseInt(selectDuracion.value) || 180;
+            configurarAlquilerLocal(gx, gz, p, d);
+          };
+        }
+      }
+      if (celda.inquilino && btnDesalojarDueno) {
+        btnDesalojarDueno.style.display = 'block';
+        btnDesalojarDueno.textContent = `🚪 Desalojar a ${celda.inquilino}`;
+        btnDesalojarDueno.onclick = () => desalojarCasaLocal(gx, gz);
+      }
+    } else {
+      if (!celda.inquilino) {
+        btnAlquilar.style.display = 'block';
+        btnAlquilar.textContent = `🔑 Alquilar Vivienda (${precioAlquiler} Ø por ${duracionMin} min)`;
+        btnAlquilar.onclick = () => alquilarCasaLocal(gx, gz);
+      } else if (esInquilinoActual) {
+        btnDesalojar.style.display = 'block';
+        btnDesalojar.textContent = '🚪 Entregar Llaves (Desocupar)';
+        btnDesalojar.onclick = () => desalojarCasaLocal(gx, gz);
+      }
     }
   }
 
@@ -3817,11 +3951,16 @@ function mostrarDetallesCelula(gx, gz) {
     }
   }
 
-  // Acción: Girar Construcción existente
+  // Acción: Girar Construcción existente (EXCLUSIVO DEL PROPIETARIO QUE LA CONSTRUYÓ)
+  const esPropioGiro = (celda.autor === jugadorLocal.nombre) || jugadorLocal.esAdmin;
   if (!esCalle && btnGirar) {
-    zonaAcciones.style.display = 'block';
-    btnGirar.style.display = 'block';
-    btnGirar.onclick = () => girarEdificioSeleccionado(gx, gz);
+    if (esPropioGiro) {
+      zonaAcciones.style.display = 'block';
+      btnGirar.style.display = 'block';
+      btnGirar.onclick = () => girarEdificioSeleccionado(gx, gz);
+    } else {
+      btnGirar.style.display = 'none';
+    }
   }
 
   // Acción Exclusiva del Alcalde: Mover Construcción de Lugar
@@ -3846,6 +3985,13 @@ function girarEdificioSeleccionado(gx, gz) {
     return;
   }
 
+  const esPropietario = (celda.autor === jugadorLocal.nombre) || jugadorLocal.esAdmin;
+  if (!esPropietario) {
+    mostrarNotificacion('🔒 Solo puedes girar las propiedades que tú mismo construiste.');
+    tocarSonido('error');
+    return;
+  }
+
   celda.rot = ((celda.rot || 0) + 90) % 360;
   actualizarMeshCelda(gx, gz);
   desenharMiniMapa();
@@ -3853,6 +3999,10 @@ function girarEdificioSeleccionado(gx, gz) {
   tocarSonido('construir');
   mostrarNotificacion(`🔄 Construcción orientada a ${celda.rot}°.`);
   mostrarDetallesCelula(gx, gz);
+
+  if (socket && socket.connected) {
+    socket.emit('solicitar_rotar', { gx, gz, rot: celda.rot });
+  }
 }
 
 function seleccionarHerramienta(nome) {
@@ -4277,7 +4427,23 @@ function animar() {
     el.classList.toggle('bloqueado-ciudadano', !jugadorLocal.esAdmin);
   });
 
-  actualizarBadgeBarrioActual();
+    actualizarBadgeBarrioActual();
+
+    // Actualizar segundero en vivo del alquiler en la tarjeta de inspección abierta
+    if (estado.celulaSelecionada) {
+      const card = document.getElementById('card-inspeccion');
+      if (card && card.style.display !== 'none') {
+        const { gx, gz } = estado.celulaSelecionada;
+        const c = estado.grade[gz]?.[gx];
+        if (c && c.alquilerExpira) {
+          const segRest = Math.max(0, Math.floor((c.alquilerExpira - Date.now()) / 1000));
+          const m = Math.floor(segRest / 60);
+          const s = segRest % 60;
+          const elTimer = document.getElementById('timer-alquiler-dinamico');
+          if (elTimer) elTimer.textContent = `${m}m ${s < 10 ? '0' : ''}${s}s`;
+        }
+      }
+    }
   }
 
   if (controles && gridHelper) {
@@ -4300,36 +4466,33 @@ function animar() {
 }
 
 /* ============================================================
-   13. SISTEMA DE COMERCIO, TRABAJOS ESPECIALIZADOS Y BANCO
+   13. SISTEMA DE COMERCIO, TRABAJOS ESPECIALIZADOS, BANCO E INVENTARIO
    ============================================================ */
-let comercioActualTipo = null;
+let comercioActualTipo = 'mercado';
 
 function abrirModalComercio(tipoComercio) {
-  if (!jugadorLocal.uid) {
-    mostrarNotificacion('🔒 Debes iniciar sesión para comerciar.');
-    setTimeout(() => { window.location.href = 'login.html'; }, 1000);
-    return;
-  }
   const modal = document.getElementById('modal-comercio');
   if (!modal) return;
-  comercioActualTipo = tipoComercio;
+  comercioActualTipo = tipoComercio || 'mercado';
 
-  const infoComercio = CATALOGO_COMERCIOS[tipoComercio] || {
-    nombre: 'Comercio Local',
-    icono: '🏪',
-    articulos: [],
-    empleo: null
-  };
+  const select = document.getElementById('select-comercio-activo');
+  if (select) select.value = comercioActualTipo;
 
-  const titulo = document.getElementById('titulo-modal-comercio');
+  const infoComercio = CATALOGO_COMERCIOS[comercioActualTipo] || CATALOGO_COMERCIOS.mercado;
+
+  const titulo = document.getElementById('comercio-titulo');
   if (titulo) {
-    titulo.textContent = `${infoComercio.icono} ${infoComercio.nombre}`;
+    titulo.textContent = infoComercio.titulo;
+  }
+  const subtitulo = document.getElementById('comercio-subtitulo');
+  if (subtitulo) {
+    subtitulo.textContent = infoComercio.subtitulo;
   }
 
   cambiarTabComercio('comprar');
-  renderizarArticulosComercio(tipoComercio);
+  renderizarArticulosComercio(comercioActualTipo);
   renderizarArticulosVenta();
-  actualizarInfoEmpleoComercio(tipoComercio);
+  actualizarInfoEmpleoComercio(comercioActualTipo);
 
   modal.style.display = 'flex';
   if (controles) controles.enabled = false;
@@ -4338,45 +4501,46 @@ function abrirModalComercio(tipoComercio) {
 function cerrarModalComercio() {
   const modal = document.getElementById('modal-comercio');
   if (modal) modal.style.display = 'none';
-  comercioActualTipo = null;
   if (controles) controles.enabled = true;
 }
 
-function cambiarTabComercio(nombreTab) {
-  document.querySelectorAll('.tab-comercio').forEach(t => {
-    t.classList.toggle('activa', t.dataset.tab === nombreTab);
+function cambiarTabComercio(nombreSeccion) {
+  document.querySelectorAll('.tab-comercio-btn').forEach(btn => {
+    btn.classList.toggle('activa', btn.dataset.seccion === nombreSeccion);
   });
   const secComprar = document.getElementById('seccion-comercio-comprar');
   const secVender = document.getElementById('seccion-comercio-vender');
   const secEmpleo = document.getElementById('seccion-comercio-empleo');
 
-  if (secComprar) secComprar.style.display = (nombreTab === 'comprar') ? 'block' : 'none';
-  if (secVender) secVender.style.display = (nombreTab === 'vender') ? 'block' : 'none';
-  if (secEmpleo) secEmpleo.style.display = (nombreTab === 'empleo') ? 'block' : 'none';
+  if (secComprar) secComprar.style.display = (nombreSeccion === 'comprar') ? 'block' : 'none';
+  if (secVender) secVender.style.display = (nombreSeccion === 'vender') ? 'block' : 'none';
+  if (secEmpleo) secEmpleo.style.display = (nombreSeccion === 'empleo') ? 'block' : 'none';
 }
 
 function renderizarArticulosComercio(tipoComercio) {
-  const cont = document.getElementById('grid-articulos-comercio');
+  const cont = document.getElementById('lista-articulos-comprar');
   if (!cont) return;
   cont.innerHTML = '';
 
   const datos = CATALOGO_COMERCIOS[tipoComercio];
   if (!datos || !datos.articulos || datos.articulos.length === 0) {
-    cont.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; grid-column:1/-1;">No hay artículos disponibles en este momento.</p>';
+    cont.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; padding: 20px;">No hay artículos disponibles en este establecimiento.</p>';
     return;
   }
 
   datos.articulos.forEach(art => {
     const card = document.createElement('div');
-    card.className = 'articulo-comercio-card';
+    card.className = 'item-tienda-tarjeta';
     card.innerHTML = `
-      <div class="icono-art">${art.icono}</div>
-      <div class="nombre-art">${art.nombre}</div>
-      <div class="precio-art">${art.precio.toLocaleString('es-PY')} Ø</div>
-      <div class="desc-art">${art.desc}</div>
-      <button class="btn-comprar-art" data-id="${art.id}">Comprar</button>
+      <div class="item-icono-lado">${art.icono || '📦'}</div>
+      <div class="item-detalles-centro">
+        <span class="item-nombre">${art.nombre}</span>
+        <span class="item-desc">${art.desc || ''}</span>
+        <span class="item-precio-badge">${art.precio.toLocaleString('es-PY')} Ø</span>
+      </div>
+      <button type="button" class="btn-comprar-item" data-id="${art.id}">Comprar</button>
     `;
-    card.querySelector('.btn-comprar-art').addEventListener('click', () => {
+    card.querySelector('.btn-comprar-item').addEventListener('click', () => {
       comprarArticuloComercio(art.id, tipoComercio);
     });
     cont.appendChild(card);
@@ -4405,7 +4569,7 @@ function comprarArticuloComercio(idItem, tipoComercio) {
       tipoId: art.id,
       nombre: art.nombre,
       icono: art.icono,
-      velocidad: art.velocidad || 1.0,
+      velocidad: art.velocidad || 1.3,
       fecha: new Date().toLocaleDateString('es-PY')
     });
     mostrarNotificacion(`🚗 ¡Has comprado ${art.nombre}! Guardado en tu Garaje.`);
@@ -4421,6 +4585,7 @@ function comprarArticuloComercio(idItem, tipoComercio) {
         icono: art.icono,
         precioBase: art.precio,
         desc: art.desc,
+        tipo: art.tipo,
         cantidad: 1
       });
     }
@@ -4434,33 +4599,33 @@ function comprarArticuloComercio(idItem, tipoComercio) {
 }
 
 function renderizarArticulosVenta() {
-  const cont = document.getElementById('lista-articulos-venta');
+  const cont = document.getElementById('lista-articulos-vender');
   if (!cont) return;
   cont.innerHTML = '';
 
-  if (!jugadorLocal.inventario || jugadorLocal.inventario.length === 0) {
-    cont.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center;">Tu mochila está vacía. No tienes objetos para vender.</p>';
+  const inv = jugadorLocal.inventario || [];
+  if (inv.length === 0) {
+    cont.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; padding: 25px;">Tu mochila está vacía. No tienes artículos para vender en este momento.</p>';
     return;
   }
 
-  jugadorLocal.inventario.forEach(item => {
-    const precioVenta = Math.round((item.precioBase || 30) * 0.7);
-    const row = document.createElement('div');
-    row.className = 'item-venta-fila';
-    row.innerHTML = `
-      <div style="display:flex; align-items:center; gap:10px;">
-        <span style="font-size:24px;">${item.icono || '📦'}</span>
-        <div>
-          <strong>${item.nombre}</strong> <span style="color:var(--cor-texto-dim); font-size:12px;">(x${item.cantidad || 1})</span><br/>
-          <small style="color:#81c784;">Valor de reventa: ${precioVenta.toLocaleString('es-PY')} Ø c/u</small>
-        </div>
+  inv.forEach(item => {
+    const precioVenta = Math.round((item.precioBase || 40) * 0.7);
+    const card = document.createElement('div');
+    card.className = 'item-tienda-tarjeta';
+    card.innerHTML = `
+      <div class="item-icono-lado">${item.icono || '📦'}</div>
+      <div class="item-detalles-centro">
+        <span class="item-nombre">${item.nombre} <strong style="color:var(--cor-primaria); font-size:11px;">(x${item.cantidad || 1})</strong></span>
+        <span class="item-desc">${item.desc || 'Artículo de inventario'}</span>
+        <span class="item-precio-badge" style="color:#81c784;">Reventa: +${precioVenta.toLocaleString('es-PY')} Ø c/u</span>
       </div>
-      <button class="btn-vender-art" data-id="${item.id}">Vender 1x</button>
+      <button type="button" class="btn-vender-item" data-id="${item.id}">Vender 1x</button>
     `;
-    row.querySelector('.btn-vender-art').addEventListener('click', () => {
+    card.querySelector('.btn-vender-item').addEventListener('click', () => {
       venderArticuloInventario(item.id);
     });
-    cont.appendChild(row);
+    cont.appendChild(card);
   });
 }
 
@@ -4470,7 +4635,7 @@ function venderArticuloInventario(idItem) {
   if (idx === -1) return;
 
   const item = jugadorLocal.inventario[idx];
-  const precioVenta = Math.round((item.precioBase || 30) * 0.7);
+  const precioVenta = Math.round((item.precioBase || 40) * 0.7);
 
   jugadorLocal.oikos += precioVenta;
   if ((item.cantidad || 1) > 1) {
@@ -4488,38 +4653,39 @@ function venderArticuloInventario(idItem) {
 
 function actualizarInfoEmpleoComercio(tipoComercio) {
   const datos = CATALOGO_COMERCIOS[tipoComercio];
-  const sec = document.getElementById('seccion-comercio-empleo');
+  const sec = document.getElementById('info-empleo-local');
+  if (!sec) return;
+
   if (!datos || !datos.empleo) {
-    if (sec) sec.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center;">Este establecimiento no tiene vacantes laborales disponibles.</p>';
+    sec.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center;">Este establecimiento no cuenta con vacantes laborales disponibles.</p>';
     return;
   }
 
   const emp = datos.empleo;
-  const titulo = document.getElementById('titulo-puesto-empleo');
-  const desc = document.getElementById('desc-puesto-empleo');
-  const salario = document.getElementById('salario-puesto-empleo');
-  const tiempo = document.getElementById('tiempo-puesto-empleo');
-  const btnPostular = document.getElementById('btn-postular-trabajo');
+  sec.innerHTML = `
+    <div style="font-size:14px; font-weight:bold; color:#ffffff; margin-bottom:4px;">${emp.titulo}</div>
+    <div style="font-size:12px; color:var(--cor-primaria); margin-bottom:8px;">${emp.empresa}</div>
+    <div class="detalle-turno">
+      <span>Salario acordado:</span>
+      <strong class="salario-resaltado">+${emp.salario.toLocaleString('es-PY')} Ø / turno</strong>
+    </div>
+    <div class="detalle-turno">
+      <span>Duración de la jornada:</span>
+      <strong>${emp.duracion} segundos</strong>
+    </div>
+    <button type="button" id="btn-postular-trabajo-local" class="btn-accion-trabajo-grande">
+      💼 Cumplir Turno de Trabajo (+${emp.salario} Ø)
+    </button>
+  `;
 
-  if (titulo) titulo.textContent = `${emp.puesto}`;
-  if (desc) desc.textContent = emp.desc;
-  if (salario) salario.textContent = `${emp.salario} Ø / turno`;
-  if (tiempo) tiempo.textContent = `${emp.duracion}s`;
-
-  if (btnPostular) {
-    const esPuestoActual = jugadorLocal.empleoEspecializado && jugadorLocal.empleoEspecializado.id === emp.id;
-    btnPostular.textContent = esPuestoActual ? '💼 Empleo Activo - Cumplir Turno' : '📝 Postularme a este Empleo';
-    btnPostular.onclick = () => {
-      postularEmpleoEspecializado(emp);
-    };
-  }
+  document.getElementById('btn-postular-trabajo-local')?.addEventListener('click', () => {
+    postularEmpleoEspecializado(emp);
+  });
 }
 
 function postularEmpleoEspecializado(emp) {
   jugadorLocal.empleoEspecializado = emp;
   guardarCiudadEnStorage(false);
-  tocarSonido('monedas');
-  mostrarNotificacion(`💼 ¡Felicidades! Has sido contratado como ${emp.puesto}.`);
   iniciarTurnoEspecializado(emp);
 }
 
@@ -4534,7 +4700,7 @@ function iniciarTurnoEspecializado(emp) {
   jugadorLocal.tiempoTurnoRestante = emp.duracion || 10;
   jugadorLocal.duracionTurnoTotal = emp.duracion || 10;
   actualizarEstadoTrabajoUI();
-  mostrarNotificacion(`💼 Turno iniciado: ${emp.puesto} (${emp.duracion}s).`);
+  mostrarNotificacion(`💼 Turno iniciado: ${emp.titulo} (${emp.duracion}s).`);
 
   const timer = setInterval(() => {
     jugadorLocal.tiempoTurnoRestante--;
@@ -4548,7 +4714,7 @@ function iniciarTurnoEspecializado(emp) {
       actualizarEstadoTrabajoUI();
       guardarCiudadEnStorage(false);
       tocarSonido('monedas');
-      mostrarNotificacion(`🎉 ¡Turno de ${emp.puesto} completado! Cobraste +${emp.salario} Oikos.`);
+      mostrarNotificacion(`🎉 ¡Turno de ${emp.titulo} completado! Cobraste +${emp.salario} Oikos.`);
     }
   }, 1000);
 }
@@ -4557,14 +4723,10 @@ function iniciarTurnoEspecializado(emp) {
    SISTEMA BANCARIO
    ============================================================ */
 function abrirModalBanco() {
-  if (!jugadorLocal.uid) {
-    mostrarNotificacion('🔒 Debes iniciar sesión para acceder a los servicios bancarios.');
-    setTimeout(() => { window.location.href = 'login.html'; }, 1000);
-    return;
-  }
   const modal = document.getElementById('modal-banco');
   if (!modal) return;
   actualizarHUDBanco();
+  cambiarTabBanco('deposito');
   modal.style.display = 'flex';
   if (controles) controles.enabled = false;
 }
@@ -4575,10 +4737,23 @@ function cerrarModalBanco() {
   if (controles) controles.enabled = true;
 }
 
+function cambiarTabBanco(nombreTab) {
+  document.querySelectorAll('.tab-banco-btn').forEach(btn => {
+    btn.classList.toggle('activa', btn.dataset.tab === nombreTab);
+  });
+  const secDep = document.getElementById('tab-banco-deposito');
+  const secTransf = document.getElementById('tab-banco-transferir');
+  const secPrest = document.getElementById('tab-banco-prestamo');
+
+  if (secDep) secDep.style.display = (nombreTab === 'deposito') ? 'block' : 'none';
+  if (secTransf) secTransf.style.display = (nombreTab === 'transferir') ? 'block' : 'none';
+  if (secPrest) secPrest.style.display = (nombreTab === 'prestamo') ? 'block' : 'none';
+}
+
 function actualizarHUDBanco() {
-  const elBilletera = document.getElementById('saldo-billetera-banco');
-  const elBanco = document.getElementById('saldo-banco-banco');
-  const elDeuda = document.getElementById('deuda-prestamo-banco');
+  const elBilletera = document.getElementById('banco-saldo-billetera');
+  const elBanco = document.getElementById('banco-saldo-cuenta');
+  const elDeuda = document.getElementById('banco-valor-deuda');
 
   if (elBilletera) elBilletera.textContent = `${jugadorLocal.oikos.toLocaleString('es-PY')} Ø`;
   if (elBanco) elBanco.textContent = `${(jugadorLocal.saldoBanco || 0).toLocaleString('es-PY')} Ø`;
@@ -4666,29 +4841,25 @@ function solicitarPrestamoBanco(monto) {
     mostrarNotificacion('❌ Ingresa un monto de préstamo válido.');
     return;
   }
-  if (monto > 5000) {
-    mostrarNotificacion('❌ El límite máximo de crédito por préstamo es de 5,000 Oikos.');
-    return;
-  }
   if ((jugadorLocal.deudaPrestamo || 0) > 0) {
-    mostrarNotificacion('❌ Ya tienes un préstamo activo pendiente de pago.');
+    mostrarNotificacion('❌ Ya tienes un crédito pendiente de amortización.');
     return;
   }
 
-  const deudaConInteres = Math.round(monto * 1.10); // 10% interés
+  const deudaConInteres = Math.round(monto * 1.10); // 10% de recargo
   jugadorLocal.oikos += monto;
   jugadorLocal.deudaPrestamo = deudaConInteres;
   actualizarHUD();
   actualizarHUDBanco();
   guardarCiudadEnStorage(false);
   tocarSonido('monedas');
-  mostrarNotificacion(`🤝 ¡Préstamo aprobado! Recibiste +${monto} Ø (Deuda a liquidar: ${deudaConInteres} Ø).`);
+  mostrarNotificacion(`🤝 ¡Crédito otorgado! Recibiste +${monto} Ø (Deuda total: ${deudaConInteres} Ø).`);
 }
 
 function pagarPrestamoBanco() {
   const deuda = jugadorLocal.deudaPrestamo || 0;
   if (deuda <= 0) {
-    mostrarNotificacion('✨ No tienes préstamos bancarios pendientes.');
+    mostrarNotificacion('✨ No tienes deudas bancarias pendientes.');
     return;
   }
   if (jugadorLocal.oikos < deuda) {
@@ -4703,7 +4874,7 @@ function pagarPrestamoBanco() {
   actualizarHUDBanco();
   guardarCiudadEnStorage(false);
   tocarSonido('monedas');
-  mostrarNotificacion(`🎉 ¡Felicidades! Has liquidado tu préstamo bancario con éxito.`);
+  mostrarNotificacion(`🎉 ¡Felicidades! Has liquidado tu crédito bancario por completo.`);
 }
 
 function iniciarInteresBancario() {
@@ -4713,18 +4884,19 @@ function iniciarInteresBancario() {
       jugadorLocal.saldoBanco += ganancia;
       actualizarHUDBanco();
       guardarCiudadEnStorage(false);
-      mostrarNotificacion(`📈 Rendimiento Bancario: +${ganancia} Ø depositados en tu cuenta de ahorros.`);
+      mostrarNotificacion(`📈 Rendimiento Bancario: +${ganancia} Ø generados en intereses.`);
     }
   }, 120000);
 }
 
 /* ============================================================
-   SISTEMA DE INVENTARIO Y GARAJE
+   SISTEMA DE INVENTARIO Y GARAJE PERSONAL
    ============================================================ */
 function abrirModalInventario() {
   const modal = document.getElementById('modal-inventario');
   if (!modal) return;
   renderizarInventario();
+  cambiarTabInventario('articulos');
   modal.style.display = 'flex';
   if (controles) controles.enabled = false;
 }
@@ -4735,25 +4907,36 @@ function cerrarModalInventario() {
   if (controles) controles.enabled = true;
 }
 
+function cambiarTabInventario(nombreTab) {
+  document.querySelectorAll('.tab-inventario-btn').forEach(btn => {
+    btn.classList.toggle('activa', btn.dataset.tab === nombreTab);
+  });
+  const secArt = document.getElementById('tab-inventario-articulos');
+  const secGar = document.getElementById('tab-inventario-garaje');
+  if (secArt) secArt.style.display = (nombreTab === 'articulos') ? 'block' : 'none';
+  if (secGar) secGar.style.display = (nombreTab === 'garaje') ? 'block' : 'none';
+}
+
 function renderizarInventario() {
-  const listaMochila = document.getElementById('lista-inventario-mochila');
-  const listaGaraje = document.getElementById('lista-inventario-garaje');
+  const listaMochila = document.getElementById('lista-mochila-items');
+  const listaGaraje = document.getElementById('lista-garaje-vehiculos');
 
   if (listaMochila) {
     listaMochila.innerHTML = '';
     const inv = jugadorLocal.inventario || [];
     if (inv.length === 0) {
-      listaMochila.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; grid-column:1/-1;">Tu mochila está vacía. Visita las tiendas de Katueté para comprar productos.</p>';
+      listaMochila.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; padding:20px;">Tu mochila está vacía. Visita las tiendas de Katueté para adquirir artículos.</p>';
     } else {
       inv.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'articulo-comercio-card';
+        card.className = 'item-tienda-tarjeta';
         card.innerHTML = `
-          <div class="icono-art">${item.icono || '📦'}</div>
-          <div class="nombre-art">${item.nombre}</div>
-          <div style="font-size:12px; color:var(--cor-primaria); font-weight:700;">Cantidad: ${item.cantidad || 1}</div>
-          <div class="desc-art">${item.desc || ''}</div>
-          <button class="btn-comprar-art" style="background:#2e7d32;" data-id="${item.id}">Usar / Consumir</button>
+          <div class="item-icono-lado">${item.icono || '📦'}</div>
+          <div class="item-detalles-centro">
+            <span class="item-nombre">${item.nombre} <strong style="color:var(--cor-primaria); font-size:11px;">(x${item.cantidad || 1})</strong></span>
+            <span class="item-desc">${item.desc || 'Artículo personal'}</span>
+          </div>
+          <button type="button" class="btn-comprar-item" style="background:#2e7d32;" data-id="${item.id}">Usar</button>
         `;
         card.querySelector('button').addEventListener('click', () => {
           usarArticuloInventario(item.id);
@@ -4767,17 +4950,19 @@ function renderizarInventario() {
     listaGaraje.innerHTML = '';
     const gar = jugadorLocal.garagem || [];
     if (gar.length === 0) {
-      listaGaraje.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; grid-column:1/-1;">No tienes vehículos en tu garaje. Visita la Concesionaria para adquirir uno.</p>';
+      listaGaraje.innerHTML = '<p style="color:var(--cor-texto-dim); text-align:center; padding:20px;">No posees vehículos en tu garaje. Visita la Concesionaria Central para comprar uno.</p>';
     } else {
       gar.forEach(veh => {
         const card = document.createElement('div');
-        card.className = 'articulo-comercio-card';
+        card.className = 'item-tienda-tarjeta';
         card.innerHTML = `
-          <div class="icono-art">${veh.icono || '🚗'}</div>
-          <div class="nombre-art">${veh.nombre}</div>
-          <div style="font-size:12px; color:#81d4fa;">Velocidad: ×${veh.velocidad || 1.2}</div>
-          <div class="desc-art">Vehículo registrado en Katueté.</div>
-          <button class="btn-comprar-art" style="background:#0288d1;" data-id="${veh.id}">Conducir por la ciudad</button>
+          <div class="item-icono-lado">${veh.icono || '🚗'}</div>
+          <div class="item-detalles-centro">
+            <span class="item-nombre">${veh.nombre}</span>
+            <span class="item-desc">Vehículo particular habilitado en Katueté</span>
+            <span class="item-precio-badge" style="color:#81d4fa;">Velocidad: ×${veh.velocidad || 1.3}</span>
+          </div>
+          <button type="button" class="btn-comprar-item" style="background:#0288d1;" data-id="${veh.id}">Conducir</button>
         `;
         card.querySelector('button').addEventListener('click', () => {
           abordarVehiculoGarage(veh);
@@ -4803,57 +4988,99 @@ function usarArticuloInventario(idItem) {
   tocarSonido('monedas');
   guardarCiudadEnStorage(false);
   renderizarInventario();
-  mostrarNotificacion(`✨ Has consumido ${item.nombre}. ¡Energía renovada!`);
+  mostrarNotificacion(`✨ Has utilizado ${item.nombre}. ¡Efecto activado!`);
 }
 
 function abordarVehiculoGarage(veh) {
   cerrarModalInventario();
-  mostrarNotificacion(`🚗 ¡Subiste a tu ${veh.nombre}! Velocidad de exploración aumentada.`);
+  mostrarNotificacion(`🚗 ¡Conduciendo tu ${veh.nombre}! Velocidad de exploración aumentada (×${veh.velocidad || 1.3}).`);
   tocarSonido('construir');
 }
 
 /* ============================================================
-   LISTENERS DE MODALES DE ECONOMÍA, BANCO E INVENTARIO
+   LISTENERS DE MODALES DE ECONOMÍA, COMERCIO, BANCO E INVENTARIO
    ============================================================ */
 // Comercio
-document.getElementById('btn-cerrar-comercio')?.addEventListener('click', cerrarModalComercio);
-document.querySelectorAll('.tab-comercio').forEach(tab => {
-  tab.addEventListener('click', () => cambiarTabComercio(tab.dataset.tab));
+document.getElementById('btn-cerrar-modal-comercio')?.addEventListener('click', cerrarModalComercio);
+
+document.querySelectorAll('.tab-comercio-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    cambiarTabComercio(btn.dataset.seccion);
+  });
+});
+
+document.getElementById('select-comercio-activo')?.addEventListener('change', (e) => {
+  abrirModalComercio(e.target.value);
+});
+
+document.getElementById('dock-btn-comercio')?.addEventListener('click', () => {
+  cerrarTodosLosMenus();
+  abrirModalComercio(comercioActualTipo || 'mercado');
+  actualizarDockActivo('dock-btn-comercio');
 });
 
 // Banco
-document.getElementById('btn-cerrar-banco')?.addEventListener('click', cerrarModalBanco);
-document.getElementById('btn-depositar-banco')?.addEventListener('click', () => {
-  const inp = document.getElementById('input-deposito-banco');
+document.getElementById('btn-cerrar-modal-banco')?.addEventListener('click', cerrarModalBanco);
+
+document.querySelectorAll('.tab-banco-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    cambiarTabBanco(btn.dataset.tab);
+  });
+});
+
+document.getElementById('btn-banco-depositar')?.addEventListener('click', () => {
+  const inp = document.getElementById('banco-input-monto');
   if (inp) { depositarEnBanco(inp.value); inp.value = ''; }
 });
-document.getElementById('btn-retirar-banco')?.addEventListener('click', () => {
-  const inp = document.getElementById('input-retiro-banco');
+
+document.getElementById('btn-banco-retirar')?.addEventListener('click', () => {
+  const inp = document.getElementById('banco-input-monto');
   if (inp) { retirarDeBanco(inp.value); inp.value = ''; }
 });
-document.getElementById('btn-transferir-banco')?.addEventListener('click', () => {
-  const dest = document.getElementById('input-destinatario-transf');
-  const monto = document.getElementById('input-monto-transf');
+
+document.getElementById('btn-banco-todo-dep')?.addEventListener('click', () => {
+  if (jugadorLocal.oikos > 0) depositarEnBanco(jugadorLocal.oikos);
+});
+
+document.getElementById('btn-banco-todo-ret')?.addEventListener('click', () => {
+  if (jugadorLocal.saldoBanco > 0) retirarDeBanco(jugadorLocal.saldoBanco);
+});
+
+document.getElementById('btn-banco-transferir-ejecutar')?.addEventListener('click', () => {
+  const dest = document.getElementById('banco-input-destinatario');
+  const monto = document.getElementById('banco-input-monto-transferir');
   if (dest && monto) {
     transferirEntreJugadores(dest.value, monto.value);
     monto.value = '';
   }
 });
-document.getElementById('btn-solicitar-prestamo')?.addEventListener('click', () => {
-  const inp = document.getElementById('input-monto-prestamo');
-  if (inp) { solicitarPrestamoBanco(inp.value); inp.value = ''; }
-});
-document.getElementById('btn-pagar-prestamo')?.addEventListener('click', pagarPrestamoBanco);
 
-// Inventario (Mochila / Garaje)
-document.getElementById('btn-cerrar-inventario')?.addEventListener('click', cerrarModalInventario);
+document.getElementById('btn-solicitar-credito-1000')?.addEventListener('click', () => {
+  solicitarPrestamoBanco(1000);
+});
+
+document.getElementById('btn-solicitar-credito-3000')?.addEventListener('click', () => {
+  solicitarPrestamoBanco(3000);
+});
+
+document.getElementById('btn-pagar-deuda')?.addEventListener('click', pagarPrestamoBanco);
+
+// Inventario
+document.getElementById('btn-cerrar-modal-inventario')?.addEventListener('click', cerrarModalInventario);
+
+document.querySelectorAll('.tab-inventario-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    cambiarTabInventario(btn.dataset.tab);
+  });
+});
+
 document.getElementById('dock-btn-inventario')?.addEventListener('click', () => {
   cerrarTodosLosMenus();
   abrirModalInventario();
   actualizarDockActivo('dock-btn-inventario');
 });
 
-// Aislamiento táctil y clics en los nuevos modales
+// Aislamiento táctil de clics en los modales
 ['modal-comercio', 'modal-banco', 'modal-inventario'].forEach(idModal => {
   const elModal = document.getElementById(idModal);
   if (elModal) {

@@ -178,7 +178,10 @@ setInterval(() => {
             tipo: celda.tipo,
             rot: celda.rot,
             inquilino: celda.inquilino || null,
-            autor: celda.autor || 'Municipio'
+            autor: celda.autor || 'Municipio',
+            alquilerExpira: celda.alquilerExpira || null,
+            precioAlquiler: celda.precioAlquiler || 150,
+            duracionAlquilerSegundos: celda.duracionAlquilerSegundos || 180
           });
         }
       }
@@ -188,6 +191,52 @@ setInterval(() => {
     console.error('Error en autoguardado del servidor:', err.message);
   }
 }, 30000);
+
+// Verificación continua del vencimiento de contratos de alquiler temporales (cada 3 segundos)
+setInterval(() => {
+  const ahora = Date.now();
+  for (let z = 0; z < TAMANHO_GRADE; z++) {
+    for (let x = 0; x < TAMANHO_GRADE; x++) {
+      const celda = mapa[z]?.[x];
+      if (celda && celda.inquilino && celda.alquilerExpira && ahora >= celda.alquilerExpira) {
+        const inquilinoExpirado = celda.inquilino;
+        const autor = celda.autor;
+        celda.inquilino = null;
+        celda.alquilerExpira = null;
+
+        // Notificar a todos los jugadores que el alquiler ha finalizado
+        io.emit('casa_actualizada', {
+          gx: x, gz: z,
+          tipo: celda.tipo,
+          inquilino: null,
+          alquilerExpira: null,
+          precioAlquiler: celda.precioAlquiler || 150,
+          duracionAlquilerSegundos: celda.duracionAlquilerSegundos || 180,
+          autor
+        });
+
+        // Buscar sockets del inquilino y del dueño para notificarles
+        for (const [sId, j] of jugadores.entries()) {
+          if (j.nombre.toLowerCase() === inquilinoExpirado.toLowerCase()) {
+            j.casasAlquiladas = j.casasAlquiladas.filter(c => !(c.gx === x && c.gz === z));
+            io.to(sId).emit('notificacion', {
+              tipo: 'info',
+              mensaje: `⌛ Tu contrato de alquiler en (${x}, ${z}) ha finalizado.`
+            });
+          }
+          if (autor && autor !== 'Municipio' && j.nombre.toLowerCase() === autor.toLowerCase()) {
+            io.to(sId).emit('notificacion', {
+              tipo: 'exito',
+              mensaje: `🔔 El alquiler de tu propiedad en (${x}, ${z}) ha terminado y vuelve a estar libre.`
+            });
+          }
+        }
+
+        console.log(`⌛ Alquiler finalizado en (${x}, ${z}) para ${inquilinoExpirado}`);
+      }
+    }
+  }
+}, 3000);
 
 /* ============================================================
    LÓGICA DE WEBSOCKETS (SOCKET.IO)
@@ -242,7 +291,10 @@ io.on('connection', (socket) => {
             tipo: celda.tipo,
             rot: celda.rot,
             inquilino: celda.inquilino || null,
-            autor: celda.autor || 'Municipio'
+            autor: celda.autor || 'Municipio',
+            alquilerExpira: celda.alquilerExpira || null,
+            precioAlquiler: celda.precioAlquiler || 150,
+            duracionAlquilerSegundos: celda.duracionAlquilerSegundos || 180
           });
         }
       }
@@ -360,9 +412,48 @@ io.on('connection', (socket) => {
   });
 
   /**
-   * 3. SISTEMA DE ALQUILER DE VIVIENDAS
+   * 3. SISTEMA DE ALQUILER TEMPORAL DE VIVIENDAS CON PAGO AL PROPIETARIO
    */
-  socket.on('alquilar_vivienda', ({ gx, gz }) => {
+  socket.on('configurar_alquiler', ({ gx, gz, precio, duracionSegundos }) => {
+    const jugador = jugadores.get(socket.id);
+    if (!jugador) return;
+    if (gx < 0 || gz < 0 || gx >= TAMANHO_GRADE || gz >= TAMANHO_GRADE) return;
+    let celda = mapa[gz]?.[gx];
+    if (!celda) return;
+    if (celda.esHijo) {
+      celda = mapa[celda.rootZ]?.[celda.rootX];
+    }
+    if (!celda) return;
+
+    // Solo el propietario o el alcalde puede fijar el precio de alquiler
+    if (celda.autor !== jugador.nombre && !jugador.esAdmin) {
+      socket.emit('notificacion', { tipo: 'error', mensaje: 'Solo el propietario puede configurar el alquiler.' });
+      return;
+    }
+
+    const nuevoPrecio = Math.max(10, Math.floor(Number(precio) || 150));
+    const nuevaDuracion = Math.max(30, Math.floor(Number(duracionSegundos) || 180));
+
+    celda.precioAlquiler = nuevoPrecio;
+    celda.duracionAlquilerSegundos = nuevaDuracion;
+
+    io.emit('casa_actualizada', {
+      gx, gz,
+      tipo: celda.tipo,
+      inquilino: celda.inquilino,
+      autor: celda.autor,
+      precioAlquiler: nuevoPrecio,
+      duracionAlquilerSegundos: nuevaDuracion,
+      alquilerExpira: celda.alquilerExpira || null
+    });
+
+    socket.emit('notificacion', {
+      tipo: 'exito',
+      mensaje: `🏷️ Vivienda puesta en alquiler por ${nuevoPrecio} Oikos (${Math.round(nuevaDuracion/60)} min).`
+    });
+  });
+
+  socket.on('alquilar_vivienda', ({ gx, gz, precio, duracionSegundos }) => {
     const jugador = jugadores.get(socket.id);
     if (!jugador) return;
 
@@ -371,7 +462,10 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const celda = mapa[gz][gx];
+    let celda = mapa[gz]?.[gx];
+    if (celda && celda.esHijo) {
+      celda = mapa[celda.rootZ]?.[celda.rootX];
+    }
     if (!celda || !['casa', 'sobrado', 'predio'].includes(celda.tipo)) {
       socket.emit('notificacion', { tipo: 'error', mensaje: 'Este edificio no es una vivienda para alquilar.' });
       return;
@@ -382,61 +476,146 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (jugador.oikos < COSTO_ALQUILER_CICLO) {
-      socket.emit('notificacion', { tipo: 'error', mensaje: `Saldo insuficiente. Necesitas al menos ${COSTO_ALQUILER_CICLO} Oikos.` });
+    const costoAlquiler = precio ? Math.max(10, Number(precio)) : (celda.precioAlquiler || COSTO_ALQUILER_CICLO);
+    const duracion = duracionSegundos ? Math.max(30, Number(duracionSegundos)) : (celda.duracionAlquilerSegundos || 180);
+
+    if (jugador.oikos < costoAlquiler) {
+      socket.emit('notificacion', { tipo: 'error', mensaje: `Saldo insuficiente. Necesitas al menos ${costoAlquiler} Oikos.` });
       return;
     }
 
-    // Cobrar primer ciclo de alquiler y registrar al inquilino
-    jugador.oikos -= COSTO_ALQUILER_CICLO;
+    // Cobrar al inquilino
+    jugador.oikos -= costoAlquiler;
     celda.inquilino = jugador.nombre;
-    jugador.casasAlquiladas.push({ gx, gz });
+    const tiempoFin = Date.now() + (duracion * 1000);
+    celda.alquilerExpira = tiempoFin;
+    celda.precioAlquiler = costoAlquiler;
+    celda.duracionAlquilerSegundos = duracion;
+    jugador.casasAlquiladas.push({ gx, gz, expira: tiempoFin });
+
+    // Transferir el pago al PROPIETARIO que construyó la casa
+    const propietarioNombre = celda.autor;
+    if (propietarioNombre && propietarioNombre !== 'Municipio' && propietarioNombre !== jugador.nombre) {
+      let propSocketId = null;
+      let propJugador = null;
+      for (const [sId, j] of jugadores.entries()) {
+        if (j.nombre.toLowerCase() === propietarioNombre.toLowerCase()) {
+          propSocketId = sId;
+          propJugador = j;
+          break;
+        }
+      }
+      if (propSocketId && propJugador) {
+        propJugador.oikos += costoAlquiler;
+        io.to(propSocketId).emit('notificacion', {
+          tipo: 'exito',
+          mensaje: `💰 ¡${jugador.nombre} ha alquilado tu vivienda en (${gx}, ${gz}) por ${costoAlquiler} Oikos (${Math.round(duracion/60)} min)!`
+        });
+        io.to(propSocketId).emit('actualizar_saldo_jugador', {
+          nombre: propJugador.nombre,
+          oikos: propJugador.oikos
+        });
+      }
+    }
 
     // Confirmar al inquilino
     socket.emit('alquiler_exitoso', {
       gx, gz,
       nuevoSaldoOikos: jugador.oikos,
       tipo: celda.tipo,
-      inquilino: jugador.nombre
+      inquilino: jugador.nombre,
+      alquilerExpira: tiempoFin,
+      precioAlquiler: costoAlquiler,
+      duracionAlquilerSegundos: duracion,
+      autor: celda.autor
     });
 
     // Notificar a todos en la ciudad en tiempo real
     io.emit('casa_actualizada', {
       gx, gz,
       tipo: celda.tipo,
-      inquilino: jugador.nombre
+      inquilino: jugador.nombre,
+      alquilerExpira: tiempoFin,
+      precioAlquiler: costoAlquiler,
+      duracionAlquilerSegundos: duracion,
+      autor: celda.autor
     });
 
     io.emit('notificacion_global', {
-      mensaje: `🏡 ¡${jugador.nombre} ha alquilado una vivienda en (${gx}, ${gz})!`
+      mensaje: `🏡 ¡${jugador.nombre} alquiló una vivienda en (${gx}, ${gz}) por ${Math.round(duracion/60)} min!`
     });
 
-    console.log(`🔑 ${jugador.nombre} alquiló la vivienda en (${gx}, ${gz}) por ${COSTO_ALQUILER_CICLO} Oikos.`);
+    console.log(`🔑 ${jugador.nombre} alquiló vivienda en (${gx}, ${gz}) de [${propietarioNombre}] por ${costoAlquiler} Oikos (${duracion}s)`);
   });
 
   /**
-   * CANCELAR ALQUILER
+   * CANCELAR / FINALIZAR ALQUILER
    */
   socket.on('desalojar_vivienda', ({ gx, gz }) => {
     const jugador = jugadores.get(socket.id);
     if (!jugador) return;
 
-    const celda = mapa[gz]?.[gx];
-    if (!celda || celda.inquilino !== jugador.nombre) {
-      socket.emit('notificacion', { tipo: 'error', mensaje: 'No eres el inquilino de esta vivienda.' });
+    let celda = mapa[gz]?.[gx];
+    if (celda && celda.esHijo) {
+      celda = mapa[celda.rootZ]?.[celda.rootX];
+    }
+    if (!celda) return;
+
+    // Puede cancelar el inquilino o el propietario o el alcalde
+    const esInquilino = celda.inquilino === jugador.nombre;
+    const esPropietario = celda.autor === jugador.nombre || jugador.esAdmin;
+
+    if (!esInquilino && !esPropietario) {
+      socket.emit('notificacion', { tipo: 'error', mensaje: 'No tienes autorización para desalojar esta vivienda.' });
       return;
     }
 
+    const inquilinoAnterior = celda.inquilino;
     celda.inquilino = null;
+    celda.alquilerExpira = null;
     jugador.casasAlquiladas = jugador.casasAlquiladas.filter(c => !(c.gx === gx && c.gz === gz));
 
     io.emit('casa_actualizada', {
       gx, gz,
       tipo: celda.tipo,
-      inquilino: null
+      inquilino: null,
+      alquilerExpira: null,
+      precioAlquiler: celda.precioAlquiler,
+      duracionAlquilerSegundos: celda.duracionAlquilerSegundos,
+      autor: celda.autor
     });
 
-    socket.emit('notificacion', { tipo: 'exito', mensaje: 'Has entregado las llaves de la vivienda.' });
+    socket.emit('notificacion', { tipo: 'exito', mensaje: 'La vivienda ha quedado desocupada y disponible.' });
+    console.log(`🚪 Desalojo en (${gx}, ${gz}): inquilino anterior ${inquilinoAnterior}`);
+  });
+
+  /**
+   * 3.1 ROTACIÓN SINCRONIZADA EXCLUSIVA DEL PROPIETARIO
+   */
+  socket.on('solicitar_rotar', ({ gx, gz, rot }) => {
+    const jugador = jugadores.get(socket.id);
+    if (!jugador) return;
+
+    let celda = mapa[gz]?.[gx];
+    if (!celda) return;
+    if (celda.esHijo) {
+      celda = mapa[celda.rootZ]?.[celda.rootX];
+    }
+    if (!celda) return;
+
+    // Comprobar que solo el propietario que la construyó (o Alcalde) pueda girarla
+    if (celda.autor !== jugador.nombre && !jugador.esAdmin) {
+      socket.emit('notificacion', { tipo: 'error', mensaje: '🔒 Solo puedes girar las propiedades que tú mismo construiste.' });
+      return;
+    }
+
+    celda.rot = rot || 0;
+    io.emit('objeto_rotado', {
+      gx, gz,
+      rot: celda.rot,
+      autor: jugador.nombre
+    });
+    console.log(`🔄 [${jugador.nombre}] giró su construcción en (${gx}, ${gz}) a ${celda.rot}°`);
   });
 
   /**
