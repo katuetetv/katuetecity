@@ -45,6 +45,7 @@ const COSTOS_CONSTRUCCION = {
   estrada_empedrado: 120,
   casa: 400,
   sobrado: 900,
+  casa_moderna: 1800,
   predio: 2200,
   loja: 1100,
   padaria: 1200,
@@ -66,8 +67,9 @@ const COSTOS_CONSTRUCCION = {
 
 // Huellas de tamaño multi-celda
 const DIMENSIONES_OBJETOS = {
-  parque: { w: 3, h: 3 },
-  usina: { w: 2, h: 2 },
+  parque: { w: 6, h: 6 },
+  usina: { w: 6, h: 6 },
+  casa_moderna: { w: 2, h: 2 },
   municipalidad: { w: 3, h: 3 },
   loja_veiculos: { w: 2, h: 2 },
   banco: { w: 2, h: 2 }
@@ -130,8 +132,9 @@ function inicializarCiudadBase() {
   mapa[c + 4][c - 5] = { tipo: 'loja', rot: 0, autor: 'Municipio' };
   mapa[c + 4][c + 5] = { tipo: 'posto', rot: 0, autor: 'Municipio' };
   mapa[c - 7][c - 6] = { tipo: 'municipalidad', rot: 0, autor: 'Municipio', w: 3, h: 3 };
-  mapa[c + 2][c - 13] = { tipo: 'parque', rot: 0, autor: 'Municipio', w: 3, h: 3 };
-  mapa[c - 12][c + 10] = { tipo: 'usina', rot: 0, autor: 'Municipio', w: 2, h: 2 };
+  mapa[c + 2][c - 14] = { tipo: 'parque', rot: 0, autor: 'Municipio', w: 6, h: 6 };
+  mapa[c - 15][c + 9] = { tipo: 'usina', rot: 0, autor: 'Municipio', w: 6, h: 6 };
+  mapa[c - 5][c - 5] = { tipo: 'casa_moderna', rot: 0, inquilino: null, autor: 'Municipio', w: 2, h: 2 };
   mapa[c + 11][c + 11] = { tipo: 'caixaDAgua', rot: 0, autor: 'Municipio' };
 
   console.log('✅ Ciudad inicial de KatueteCity creada en el servidor (Mapa 400x400).');
@@ -466,7 +469,7 @@ io.on('connection', (socket) => {
     if (celda && celda.esHijo) {
       celda = mapa[celda.rootZ]?.[celda.rootX];
     }
-    if (!celda || !['casa', 'sobrado', 'predio'].includes(celda.tipo)) {
+    if (!celda || !['casa', 'sobrado', 'predio', 'casa_moderna'].includes(celda.tipo)) {
       socket.emit('notificacion', { tipo: 'error', mensaje: 'Este edificio no es una vivienda para alquilar.' });
       return;
     }

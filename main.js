@@ -296,6 +296,7 @@ const COSTOS_CONSTRUCCION = {
   estrada: 0, // Exclusivo Alcalde
   casa: 400,
   sobrado: 900,
+  casa_moderna: 1800,  // Mansión Moderna de Lujo (2x2)
   predio: 2200,
   loja: 1100,
   padaria: 1200,
@@ -305,8 +306,8 @@ const COSTOS_CONSTRUCCION = {
   posto: 1800,
   loja_veiculos: 3200, // 2x2
   banco: 4000,         // 2x2
-  parque: 600,         // Exclusivo Alcalde (3x3)
-  usina: 2800,         // Exclusivo Alcalde (2x2)
+  parque: 600,         // Exclusivo Alcalde (6x6)
+  usina: 2800,         // Exclusivo Alcalde (6x6)
   caixaDAgua: 2000,    // Exclusivo Alcalde
   municipalidad: 5000   // Exclusivo Alcalde (3x3)
 };
@@ -322,8 +323,9 @@ const CONSTRUCCIONES_EXCLUSIVAS_ALCALDE = [
 
 // Dimensiones de huella en la grilla para construcciones de múltiples celdas
 const DIMENSIONES_OBJETOS = {
-  parque: { w: 3, h: 3 },
-  usina: { w: 2, h: 2 },
+  parque: { w: 6, h: 6 },
+  usina: { w: 6, h: 6 },
+  casa_moderna: { w: 2, h: 2 },
   municipalidad: { w: 3, h: 3 },
   loja_veiculos: { w: 2, h: 2 },
   banco: { w: 2, h: 2 }
@@ -850,8 +852,9 @@ function generarCiudadBase() {
   instanciarObjetoLocal('loja', c + 4, c - 5, 0, null, 'Municipio');
   instanciarObjetoLocal('posto', c + 4, c + 5, 0, null, 'Municipio');
   instanciarObjetoLocal('municipalidad', c - 7, c - 6, 0, null, 'Municipio'); // 3x3 Palacio Municipal
-  instanciarObjetoLocal('parque', c + 2, c - 13, 0, null, 'Municipio');       // 3x3 Parque Ecológico
-  instanciarObjetoLocal('usina', c - 12, c + 10, 0, null, 'Municipio');       // 2x2 Usina Eléctrica
+  instanciarObjetoLocal('parque', c + 2, c - 14, 0, null, 'Municipio');       // 6x6 Parque Metropolitano
+  instanciarObjetoLocal('usina', c - 15, c + 9, 0, null, 'Municipio');        // 6x6 Usina Eléctrica Complejo
+  instanciarObjetoLocal('casa_moderna', c - 5, c - 5, 0, null, 'Municipio');  // 2x2 Mansión Moderna de Lujo
   instanciarObjetoLocal('caixaDAgua', c + 11, c + 11, 0, null, 'Municipio');
 
   // Distrito inicial predeterminado
@@ -922,6 +925,7 @@ function iniciarMotor3D() {
 
   configurarEventosInteraccion();
   reconstruirVisualBairros3D();
+  iniciarSistemaTransito();
   animar();
 }
 
@@ -1023,6 +1027,7 @@ function criarCasa(rot) {
   return grupo;
 }
 
+
 function criarSobrado(rot) {
   const grupo = new THREE.Group();
   const p1 = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.8, 3.0), new THREE.MeshLambertMaterial({ color: 0xefebe9 }));
@@ -1043,6 +1048,7 @@ function criarSobrado(rot) {
   grupo.rotation.y = rot;
   return grupo;
 }
+
 
 function criarPredio(rot) {
   const grupo = new THREE.Group();
@@ -1065,6 +1071,150 @@ function criarPredio(rot) {
   return grupo;
 }
 
+function criarCasaModerna(rot) {
+  const grupo = new THREE.Group();
+  const tamanho = TAMANHO_CELULA * 2; // 8.0m (Huella 2x2)
+
+  // 1. Base jardín y terraza
+  const matGrama = new THREE.MeshLambertMaterial({ color: 0x388e3c });
+  const patio = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.2, 0.16, tamanho - 0.2), matGrama);
+  patio.position.y = 0.08;
+  patio.receiveShadow = true;
+  grupo.add(patio);
+
+  // Pavimento de entrada y cochera (piedra oscura moderna)
+  const matPisoPiedra = new THREE.MeshLambertMaterial({ color: 0x37474f });
+  const calzadaEntrada = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.18, 3.8), matPisoPiedra);
+  calzadaEntrada.position.set(-2.2, 0.09, 1.8);
+  grupo.add(calzadaEntrada);
+
+  // 2. Planta Baja - Estructura arquitectónica contemporánea
+  const matBlanco = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
+  const cuerpoPB = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.2, 4.4), matBlanco);
+  cuerpoPB.position.set(-0.8, 1.1 + 0.16, -0.8);
+  cuerpoPB.castShadow = true;
+  cuerpoPB.receiveShadow = true;
+  grupo.add(cuerpoPB);
+
+  // Muro decorativo de piedra oscura / acento
+  const matAcento = new THREE.MeshLambertMaterial({ color: 0x424242 });
+  const muroAcento = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.3, 4.5), matAcento);
+  muroAcento.position.set(0.8, 1.15 + 0.16, -0.8);
+  muroAcento.castShadow = true;
+  grupo.add(muroAcento);
+
+  // Ventanales panorámicos de vidrio templado reflectante
+  const matVidrio = new THREE.MeshLambertMaterial({ color: 0x80deea, transparent: true, opacity: 0.75 });
+  const ventanalPB = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.7, 0.1), matVidrio);
+  ventanalPB.position.set(-1.0, 1.1 + 0.16, 1.42);
+  grupo.add(ventanalPB);
+
+  // Puerta de madera noble pivotante
+  const matPuerta = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.9, 0.12), matPuerta);
+  puerta.position.set(0.9, 0.95 + 0.16, 1.48);
+  grupo.add(puerta);
+
+  // 3. Planta Alta - Master Suite suspendida (cantilever)
+  const matMaderaListon = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+  const cuerpoPA = new THREE.Mesh(new THREE.BoxGeometry(4.6, 2.0, 3.8), matMaderaListon);
+  cuerpoPA.position.set(-0.5, 3.2 + 0.16, -0.4);
+  cuerpoPA.castShadow = true;
+  grupo.add(cuerpoPA);
+
+  // Balcón voladizo con baranda de cristal templado
+  const matBalcon = new THREE.MeshLambertMaterial({ color: 0xe0e0e0 });
+  const losaBalcon = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.14, 1.6), matBalcon);
+  losaBalcon.position.set(-0.5, 2.2 + 0.16, 1.9);
+  grupo.add(losaBalcon);
+
+  const barandaVidrio = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.7, 0.06), matVidrio);
+  barandaVidrio.position.set(-0.5, 2.6 + 0.16, 2.65);
+  grupo.add(barandaVidrio);
+
+  // Gran ventanal superior
+  const ventanalPA = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.4, 0.1), matVidrio);
+  ventanalPA.position.set(-0.5, 3.2 + 0.16, 1.52);
+  grupo.add(ventanalPA);
+
+  // 4. Techo plano con paneles solares
+  const matTecho = new THREE.MeshLambertMaterial({ color: 0x212121 });
+  const techo = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.16, 4.1), matTecho);
+  techo.position.set(-0.5, 4.28 + 0.16, -0.4);
+  grupo.add(techo);
+
+  // Paneles solares fotovoltaicos
+  const matSolar = new THREE.MeshLambertMaterial({ color: 0x1565c0 });
+  [-1.4, -0.2, 1.0].forEach(px => {
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 1.2), matSolar);
+    panel.position.set(px, 4.4 + 0.16, -0.4);
+    panel.rotation.x = -0.15;
+    grupo.add(panel);
+  });
+
+  // 5. Piscina privada con solarium
+  const matBordePiscina = new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+  const bordePiscina = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.28, 4.0), matBordePiscina);
+  bordePiscina.position.set(2.3, 0.14, 0.6);
+  grupo.add(bordePiscina);
+
+  const matAguaPiscina = new THREE.MeshLambertMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.85 });
+  const aguaPiscina = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.24, 3.5), matAguaPiscina);
+  aguaPiscina.position.set(2.3, 0.18, 0.6);
+  grupo.add(aguaPiscina);
+
+  // Tumbonas al lado de la piscina
+  const matTumbona = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const tumbona1 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 1.2), matTumbona);
+  tumbona1.position.set(2.3, 0.35, -2.0);
+  grupo.add(tumbona1);
+
+  const matSombrilla = new THREE.MeshLambertMaterial({ color: 0xff7043 });
+  const paloSombrilla = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6), matTecho);
+  paloSombrilla.position.set(1.5, 0.95, -2.0);
+  grupo.add(paloSombrilla);
+  const toldoSombrilla = new THREE.Mesh(new THREE.ConeGeometry(0.75, 0.35, 8), matSombrilla);
+  toldoSombrilla.position.set(1.5, 1.7, -2.0);
+  grupo.add(toldoSombrilla);
+
+  // 6. Coche deportivo estacionado en la entrada
+  const matCarroLujo = new THREE.MeshLambertMaterial({ color: 0xd50000 });
+  const chasisCarro = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.38, 2.2), matCarroLujo);
+  chasisCarro.position.set(-2.2, 0.35, 1.8);
+  chasisCarro.castShadow = true;
+  grupo.add(chasisCarro);
+
+  const cabinaCarro = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.32, 1.1), matTecho);
+  cabinaCarro.position.set(-2.2, 0.65, 1.65);
+  grupo.add(cabinaCarro);
+
+  // 7. Palmera y arbustos ornamentales
+  const matTroncoPalma = new THREE.MeshLambertMaterial({ color: 0x6d4c41 });
+  const troncoPalma = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 2.8, 6), matTroncoPalma);
+  troncoPalma.position.set(-3.2, 1.4, -3.0);
+  troncoPalma.rotation.z = 0.08;
+  grupo.add(troncoPalma);
+
+  const matHojasPalma = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+    const hoja = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 1.3), matHojasPalma);
+    hoja.position.set(-3.2 + Math.cos(a) * 0.5, 2.8, -3.0 + Math.sin(a) * 0.5);
+    hoja.rotation.y = a;
+    hoja.rotation.x = 0.35;
+    grupo.add(hoja);
+  }
+
+  // Seto verde geométrico moderno
+  const matSeto = new THREE.MeshLambertMaterial({ color: 0x1b5e20 });
+  const setoFrente = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.55, 0.35), matSeto);
+  setoFrente.position.set(0.0, 0.35, 3.4);
+  grupo.add(setoFrente);
+
+  grupo.rotation.y = rot;
+  return grupo;
+}
+
+
 function criarLoja(rot) {
   const grupo = new THREE.Group();
   const base = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.4, 3.4), new THREE.MeshLambertMaterial({ color: 0xffb300 }));
@@ -1080,6 +1230,7 @@ function criarLoja(rot) {
   grupo.rotation.y = rot;
   return grupo;
 }
+
 
 function criarPadaria(rot) {
   const grupo = new THREE.Group();
@@ -1121,6 +1272,7 @@ function criarPadaria(rot) {
   return grupo;
 }
 
+
 function criarMercado(rot) {
   const grupo = new THREE.Group();
   const nave = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.8, 3.6), new THREE.MeshLambertMaterial({ color: 0xf1f8e9 }));
@@ -1157,6 +1309,7 @@ function criarMercado(rot) {
   grupo.rotation.y = rot;
   return grupo;
 }
+
 
 function criarLojaRoupa(rot) {
   const grupo = new THREE.Group();
@@ -1195,6 +1348,7 @@ function criarLojaRoupa(rot) {
   grupo.rotation.y = rot;
   return grupo;
 }
+
 
 function criarRestaurante(rot) {
   const grupo = new THREE.Group();
@@ -1239,6 +1393,7 @@ function criarRestaurante(rot) {
   grupo.rotation.y = rot;
   return grupo;
 }
+
 
 function criarLojaVeiculos(rot) {
   const grupo = new THREE.Group();
@@ -1314,6 +1469,7 @@ function criarLojaVeiculos(rot) {
   return grupo;
 }
 
+
 function criarBanco(rot) {
   const grupo = new THREE.Group();
   const tamanho = TAMANHO_CELULA * 2; // 8.0m (Huella 2x2 celdas)
@@ -1378,6 +1534,7 @@ function criarBanco(rot) {
   return grupo;
 }
 
+
 function criarPosto(rot) {
   const grupo = new THREE.Group();
   const piso = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.1, 3.8), new THREE.MeshLambertMaterial({ color: 0x78909c }));
@@ -1399,105 +1556,200 @@ function criarPosto(rot) {
   return grupo;
 }
 
+
 function criarParque() {
   const grupo = new THREE.Group();
-  const tamanho = TAMANHO_CELULA * 3; // 12.0 (Huella 3x3 celdas)
+  const tamanho = TAMANHO_CELULA * 6; // 24.0 (Huella 6x6 celdas)
 
   // 1. Césped base
-  const piso = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.2, 0.12, tamanho - 0.2), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
-  piso.position.y = 0.06;
+  const piso = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.2, 0.14, tamanho - 0.2), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+  piso.position.y = 0.07;
   piso.receiveShadow = true;
   grupo.add(piso);
 
-  // 2. Caminos peatonales de piedra en cruz
-  const matCamino = new THREE.MeshLambertMaterial({ color: 0xd7ccc8 });
-  const caminoX = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.4, 0.03, 1.8), matCamino);
-  caminoX.position.y = 0.13;
-  grupo.add(caminoX);
+  // 2. Gran Laguna Central con agua cristalina y puente
+  const matBordeLago = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+  const bordeLago = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 5.5, 0.22, 24), matBordeLago);
+  bordeLago.position.set(0, 0.15, 0);
+  grupo.add(bordeLago);
 
-  const caminoZ = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.03, tamanho - 0.4), matCamino);
-  caminoZ.position.y = 0.13;
-  grupo.add(caminoZ);
+  const matAguaLago = new THREE.MeshLambertMaterial({ color: 0x0288d1, transparent: true, opacity: 0.88 });
+  const aguaLago = new THREE.Mesh(new THREE.CylinderGeometry(4.8, 4.8, 0.2, 24), matAguaLago);
+  aguaLago.position.set(0, 0.18, 0);
+  grupo.add(aguaLago);
 
-  // Plaza central circular
-  const plazaCentral = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 0.04, 16), matCamino);
-  plazaCentral.position.y = 0.135;
-  grupo.add(plazaCentral);
-
-  // 3. Fuente ornamental central con agua
-  const matBordeFuente = new THREE.MeshLambertMaterial({ color: 0xb0bec5 });
-  const baseFuente = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 0.4, 16), matBordeFuente);
-  baseFuente.position.y = 0.35;
-  grupo.add(baseFuente);
-
-  const matAgua = new THREE.MeshLambertMaterial({ color: 0x0288d1, transparent: true, opacity: 0.85 });
-  const aguaFuente = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 0.38, 16), matAgua);
-  aguaFuente.position.y = 0.38;
-  grupo.add(aguaFuente);
-
-  const pilarFuente = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.1, 8), matBordeFuente);
-  pilarFuente.position.y = 0.85;
+  // Fuente ornamental central con surtidores de agua
+  const matFuente = new THREE.MeshLambertMaterial({ color: 0xb0bec5 });
+  const pilarFuente = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.6, 12), matFuente);
+  pilarFuente.position.set(0, 0.9, 0);
   grupo.add(pilarFuente);
 
-  const platoSuperior = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.5, 0.18, 12), matBordeFuente);
-  platoSuperior.position.y = 1.3;
-  grupo.add(platoSuperior);
+  const tazonFuente = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.9, 0.35, 16), matFuente);
+  tazonFuente.position.set(0, 1.5, 0);
+  grupo.add(tazonFuente);
 
-  const chorroAgua = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.15, 0.7, 8), matAgua);
-  chorroAgua.position.y = 1.7;
-  grupo.add(chorroAgua);
+  const chorroCentral = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 1.4, 8), matAguaLago);
+  chorroCentral.position.set(0, 2.2, 0);
+  grupo.add(chorroCentral);
 
-  // 4. Árboles y vegetación en las 4 esquinas
+  // Puente peatonal de madera arqueado sobre la laguna
+  const matPuente = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const arcoPuente = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.18, 8.5), matPuente);
+  arcoPuente.position.set(1.8, 0.45, 0);
+  arcoPuente.rotation.x = 0;
+  grupo.add(arcoPuente);
+
+  // Barandas del puente
+  [-0.65, 0.65].forEach(ox => {
+    const baranda = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 8.5), matPuente);
+    baranda.position.set(1.8 + ox, 0.75, 0);
+    grupo.add(baranda);
+  });
+
+  // 3. Red de caminos peatonales de adoquines en cruz y circulares
+  const matCamino = new THREE.MeshLambertMaterial({ color: 0xd7ccc8 });
+  const caminoNorte = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.04, 6.5), matCamino);
+  caminoNorte.position.set(0, 0.16, -8.5);
+  grupo.add(caminoNorte);
+
+  const caminoSur = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.04, 6.5), matCamino);
+  caminoSur.position.set(0, 0.16, 8.5);
+  grupo.add(caminoSur);
+
+  const caminoEste = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.04, 2.4), matCamino);
+  caminoEste.position.set(8.5, 0.16, 0);
+  grupo.add(caminoEste);
+
+  const caminoOeste = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.04, 2.4), matCamino);
+  caminoOeste.position.set(-8.5, 0.16, 0);
+  grupo.add(caminoOeste);
+
+  // Paseo perimetral circular alrededor de la laguna
+  const paseoAnillo = new THREE.Mesh(new THREE.RingGeometry(5.4, 7.2, 24), matCamino);
+  paseoAnillo.rotation.x = -Math.PI / 2;
+  paseoAnillo.position.y = 0.16;
+  grupo.add(paseoAnillo);
+
+  // 4. Glorieta / Cenador clásico (Gazebo) en la esquina noroeste
+  const matGlorieta = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
+  const baseGlorieta = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.3, 0.3, 8), matGlorieta);
+  baseGlorieta.position.set(-7.5, 0.25, -7.5);
+  grupo.add(baseGlorieta);
+
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 6), matGlorieta);
+    col.position.set(-7.5 + Math.cos(a) * 1.8, 1.4, -7.5 + Math.sin(a) * 1.8);
+    grupo.add(col);
+  }
+
+  const techoGlorieta = new THREE.Mesh(new THREE.ConeGeometry(2.5, 1.4, 8), new THREE.MeshLambertMaterial({ color: 0x00796b }));
+  techoGlorieta.position.set(-7.5, 2.9, -7.5);
+  grupo.add(techoGlorieta);
+
+  // 5. Área infantil y de recreación (esquina sureste)
+  const matMadera = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+  const arenero = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.2, 3.5), new THREE.MeshLambertMaterial({ color: 0xffe082 }));
+  arenero.position.set(7.5, 0.2, 7.5);
+  grupo.add(arenero);
+
+  const bordeArenero = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.25, 3.7), matMadera);
+  bordeArenero.position.set(7.5, 0.18, 7.5);
+  grupo.add(bordeArenero);
+
+  const tobogan = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, 2.2), new THREE.MeshLambertMaterial({ color: 0xe53935 }));
+  tobogan.position.set(7.5, 0.8, 5.2);
+  tobogan.rotation.x = 0.5;
+  grupo.add(tobogan);
+
+  // 6. Árboles abundantes de diferentes especies (16 árboles)
   const matTronco = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
-  const matCopa1 = new THREE.MeshLambertMaterial({ color: 0x388e3c });
-  const matCopa2 = new THREE.MeshLambertMaterial({ color: 0x1b5e20 });
+  const matCopaVerde = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+  const matCopaPino = new THREE.MeshLambertMaterial({ color: 0x1b5e20 });
+  const matCopaCerezo = new THREE.MeshLambertMaterial({ color: 0xf48fb1 });
+  const matCopaOtoño = new THREE.MeshLambertMaterial({ color: 0xf57c00 });
 
-  const posicionesArboles = [
-    [-3.8, -3.8, 1.2, matCopa1],
-    [3.8, -3.8, 1.3, matCopa2],
-    [-3.8, 3.8, 1.25, matCopa2],
-    [3.8, 3.8, 1.1, matCopa1],
-    [-1.6, -3.8, 0.9, matCopa1],
-    [1.6, 3.8, 0.95, matCopa2]
+  const arboles = [
+    [-9.5, -3.5, 1.4, 'esfera', matCopaVerde],
+    [-8.5, 3.5, 1.3, 'cono', matCopaPino],
+    [-4.5, -8.5, 1.2, 'esfera', matCopaCerezo],
+    [-3.5, 8.5, 1.35, 'esfera', matCopaVerde],
+    [9.5, -4.5, 1.5, 'esfera', matCopaOtoño],
+    [8.5, -8.5, 1.3, 'cono', matCopaPino],
+    [4.5, 9.5, 1.4, 'esfera', matCopaCerezo],
+    [-7.5, 8.5, 1.25, 'cono', matCopaPino],
+    [9.5, 3.5, 1.3, 'esfera', matCopaVerde],
+    [-9.5, 7.5, 1.2, 'esfera', matCopaOtoño],
+    [3.5, -9.5, 1.35, 'esfera', matCopaVerde],
+    [-4.5, 4.5, 1.0, 'esfera', matCopaCerezo],
+    [5.0, -4.5, 1.1, 'cono', matCopaPino],
+    [-5.0, -4.0, 1.15, 'esfera', matCopaVerde],
+    [4.0, 4.5, 1.05, 'esfera', matCopaOtoño],
+    [-8.0, 0.0, 1.3, 'esfera', matCopaVerde]
   ];
 
-  posicionesArboles.forEach(([ax, az, escala, matCopa]) => {
-    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * escala, 0.22 * escala, 1.7 * escala, 6), matTronco);
-    tronco.position.set(ax, 0.85 * escala, az);
+  arboles.forEach(([ax, az, escala, forma, matCopa]) => {
+    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * escala, 0.28 * escala, 2.2 * escala, 6), matTronco);
+    tronco.position.set(ax, 1.1 * escala, az);
     tronco.castShadow = true;
     grupo.add(tronco);
 
-    const copa = new THREE.Mesh(new THREE.SphereGeometry(1.15 * escala, 8, 8), matCopa);
-    copa.position.set(ax, 2.2 * escala, az);
-    copa.castShadow = true;
-    grupo.add(copa);
+    if (forma === 'cono') {
+      const pino = new THREE.Mesh(new THREE.ConeGeometry(1.4 * escala, 3.4 * escala, 8), matCopa);
+      pino.position.set(ax, 2.8 * escala, az);
+      pino.castShadow = true;
+      grupo.add(pino);
+    } else {
+      const copa = new THREE.Mesh(new THREE.SphereGeometry(1.4 * escala, 8, 8), matCopa);
+      copa.position.set(ax, 2.8 * escala, az);
+      copa.castShadow = true;
+      grupo.add(copa);
+    }
   });
 
-  // 5. Bancos de parque (madera y soporte)
-  const matMadera = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
-  [
-    [-1.8, 1.6, 0],
-    [1.8, -1.6, Math.PI],
-    [1.6, 1.8, Math.PI / 2],
-    [-1.6, -1.8, -Math.PI / 2]
-  ].forEach(([bx, bz, rotY]) => {
-    const banco = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.3), matMadera);
-    banco.position.set(bx, 0.24, bz);
+  // 7. Bancos de madera perimetrales
+  const posicionesBancos = [
+    [-3.0, -6.5, 0], [3.0, -6.5, 0],
+    [-3.0, 6.5, Math.PI], [3.0, 6.5, Math.PI],
+    [-6.5, -3.0, Math.PI / 2], [-6.5, 3.0, Math.PI / 2],
+    [6.5, -3.0, -Math.PI / 2], [6.5, 3.0, -Math.PI / 2]
+  ];
+  posicionesBancos.forEach(([bx, bz, rotY]) => {
+    const banco = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.28, 0.45), matMadera);
+    banco.position.set(bx, 0.28, bz);
     banco.rotation.y = rotY;
     grupo.add(banco);
   });
 
-  // 6. Farolas coloniales
+  // 8. Farolas coloniales ornamentales
   const matFarol = new THREE.MeshLambertMaterial({ color: 0x212121 });
   const matLuz = new THREE.MeshBasicMaterial({ color: 0xfff9c4 });
-  [[-2.4, -2.4], [2.4, -2.4], [-2.4, 2.4], [2.4, 2.4]].forEach(([lx, lz]) => {
-    const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.2, 6), matFarol);
-    poste.position.set(lx, 1.1, lz);
+  [
+    [-7.0, -1.8], [-7.0, 1.8], [7.0, -1.8], [7.0, 1.8],
+    [-1.8, -7.0], [1.8, -7.0], [-1.8, 7.0], [1.8, 7.0],
+    [-7.5, -5.0], [7.5, -5.0], [-7.5, 5.0], [7.5, 5.0]
+  ].forEach(([lx, lz]) => {
+    const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.5, 6), matFarol);
+    poste.position.set(lx, 1.25, lz);
     grupo.add(poste);
 
-    const lampara = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), matLuz);
-    lampara.position.set(lx, 2.2, lz);
+    const lampara = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 6), matLuz);
+    lampara.position.set(lx, 2.5, lz);
     grupo.add(lampara);
+  });
+
+  // 9. Macizos de flores de colores
+  const coloresFlores = [0xe91e63, 0x9c27b0, 0xffeb3b, 0xff5722];
+  [
+    [-6.5, -6.5], [6.5, -6.5], [-6.5, 6.5], [6.0, 0.0], [-6.0, 0.0]
+  ].forEach(([fx, fz], idx) => {
+    const cantero = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 0.2, 12), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+    cantero.position.set(fx, 0.2, fz);
+    grupo.add(cantero);
+
+    const flores = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 8), new THREE.MeshLambertMaterial({ color: coloresFlores[idx % coloresFlores.length] }));
+    flores.position.set(fx, 0.35, fz);
+    flores.scale.set(1, 0.35, 1);
+    grupo.add(flores);
   });
 
   return grupo;
@@ -1505,74 +1757,145 @@ function criarParque() {
 
 function criarUsina(rot) {
   const grupo = new THREE.Group();
-  const tamanho = TAMANHO_CELULA * 2; // 8.0 (Huella 2x2 celdas)
+  const tamanho = TAMANHO_CELULA * 6; // 24.0 (Huella 6x6 celdas)
 
-  // 1. Losa de hormigón reforzado
-  const base = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.2, 0.18, tamanho - 0.2), new THREE.MeshLambertMaterial({ color: 0x455a64 }));
-  base.position.y = 0.09;
+  // 1. Gran losa de hormigón industrial reforzado
+  const base = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.2, 0.25, tamanho - 0.2), new THREE.MeshLambertMaterial({ color: 0x37474f }));
+  base.position.y = 0.125;
   base.receiveShadow = true;
   grupo.add(base);
 
-  // 2. Nave principal de turbinas y generadores
-  const matGalpao = new THREE.MeshLambertMaterial({ color: 0x37474f });
-  const galpao = new THREE.Mesh(new THREE.BoxGeometry(4.8, 3.0, 3.6), matGalpao);
-  galpao.position.set(-1.0, 1.5 + 0.18, 1.2);
-  galpao.castShadow = true;
-  grupo.add(galpao);
+  // Señalización de seguridad perimetral amarilla/negra (franjas de peligro)
+  const matPeligroAmarillo = new THREE.MeshLambertMaterial({ color: 0xfbc02d });
+  const franjaNorte = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.4, 0.26, 0.4), matPeligroAmarillo);
+  franjaNorte.position.set(0, 0.13, -tamanho / 2 + 0.4);
+  grupo.add(franjaNorte);
+  const franjaSur = new THREE.Mesh(new THREE.BoxGeometry(tamanho - 0.4, 0.26, 0.4), matPeligroAmarillo);
+  franjaSur.position.set(0, 0.13, tamanho / 2 - 0.4);
+  grupo.add(franjaSur);
 
-  // Techo industrial a dos aguas
-  const matTecho = new THREE.MeshLambertMaterial({ color: 0x263238 });
-  const techo = new THREE.Mesh(new THREE.ConeGeometry(3.4, 1.2, 4), matTecho);
-  techo.position.set(-1.0, 3.6 + 0.18, 1.2);
-  techo.rotation.y = Math.PI / 4;
-  grupo.add(techo);
+  // 2. Cuatro gigantescas chimeneas / torres de enfriamiento hiperbólicas
+  const matTorre = new THREE.MeshLambertMaterial({ color: 0x78909c });
+  const matRojoAereo = new THREE.MeshLambertMaterial({ color: 0xd32f2f });
+  const matBlancoAereo = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const matVapor = new THREE.MeshLambertMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.65 });
 
-  // 3. Dos chimeneas de refrigeración industriales con bandas de seguridad aérea
-  const matChamine = new THREE.MeshLambertMaterial({ color: 0xd32f2f });
-  const matAnel = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const posicionesTorres = [
+    [-6.5, -6.5],
+    [-1.5, -6.5],
+    [-6.5, -1.5],
+    [-1.5, -1.5]
+  ];
 
-  [[-1.8, -2.0], [0.6, -2.0]].forEach(([cx, cz]) => {
-    const chamine = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 7.2, 16), matChamine);
-    chamine.position.set(cx, 3.6 + 0.18, cz);
-    chamine.castShadow = true;
-    grupo.add(chamine);
+  posicionesTorres.forEach(([tx, tz]) => {
+    const cuerpo = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.5, 9.5, 20), matTorre);
+    cuerpo.position.set(tx, 4.75 + 0.25, tz);
+    cuerpo.castShadow = true;
+    grupo.add(cuerpo);
 
-    // Anillo blanco de aviso
-    const anel = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.74, 1.1, 16), matAnel);
-    anel.position.set(cx, 5.0 + 0.18, cz);
-    grupo.add(anel);
+    const bandaRoja = new THREE.Mesh(new THREE.CylinderGeometry(1.64, 1.8, 1.4, 20), matRojoAereo);
+    bandaRoja.position.set(tx, 7.5 + 0.25, tz);
+    grupo.add(bandaRoja);
 
-    // Boca superior de ventilación
-    const boca = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.2, 16), new THREE.MeshLambertMaterial({ color: 0x212121 }));
-    boca.position.set(cx, 7.2 + 0.18, cz);
-    grupo.add(boca);
+    const bandaBlanca = new THREE.Mesh(new THREE.CylinderGeometry(1.62, 1.7, 1.2, 20), matBlancoAereo);
+    bandaBlanca.position.set(tx, 6.2 + 0.25, tz);
+    grupo.add(bandaBlanca);
+
+    const cuello = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.55, 0.8, 20), matTorre);
+    cuello.position.set(tx, 9.6 + 0.25, tz);
+    grupo.add(cuello);
+
+    const vapor = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2.2, 12), matVapor);
+    vapor.position.set(tx, 10.9 + 0.25, tz);
+    grupo.add(vapor);
   });
 
-  // 4. Subestación transformadora eléctrica
-  const matTrafo = new THREE.MeshLambertMaterial({ color: 0x78909c });
-  [ [2.4, -0.6], [2.4, 1.3], [2.4, 2.5] ].forEach(([tx, tz]) => {
-    const trafo = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.5, 0.8), matTrafo);
-    trafo.position.set(tx, 0.75 + 0.18, tz);
-    grupo.add(trafo);
+  // 3. Dos grandes Naves de Turbinas y Generadores (galpones industriales)
+  const matNave = new THREE.MeshLambertMaterial({ color: 0x455a64 });
+  const navePrincipal = new THREE.Mesh(new THREE.BoxGeometry(9.0, 5.5, 10.0), matNave);
+  navePrincipal.position.set(5.5, 2.75 + 0.25, -4.5);
+  navePrincipal.castShadow = true;
+  grupo.add(navePrincipal);
 
-    const aislador = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.12, 0.7, 6), new THREE.MeshLambertMaterial({ color: 0xb0bec5 }));
-    aislador.position.set(tx, 1.7 + 0.18, tz);
-    grupo.add(aislador);
+  const matTechoNave = new THREE.MeshLambertMaterial({ color: 0x263238 });
+  const techoNave = new THREE.Mesh(new THREE.ConeGeometry(7.0, 2.2, 4), matTechoNave);
+  techoNave.position.set(5.5, 6.2 + 0.25, -4.5);
+  techoNave.rotation.y = Math.PI / 4;
+  grupo.add(techoNave);
+
+  const matEscape = new THREE.MeshLambertMaterial({ color: 0xb0bec5 });
+  [[-1.5, 2.0], [1.5, 2.0]].forEach(([ox, oz]) => {
+    const escape = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 4.0, 10), matEscape);
+    escape.position.set(5.5 + ox, 7.5 + 0.25, -4.5 + oz);
+    grupo.add(escape);
   });
 
-  // Torre metálica de alta tensión
-  const matTorre = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
-  const pilarTorre = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.18, 4.8, 4), matTorre);
-  pilarTorre.position.set(2.4, 2.4 + 0.18, -2.0);
-  grupo.add(pilarTorre);
+  // 4. Subestación Eléctrica de Transformadores de Alta Potencia (esquina suroeste)
+  const matTrafo = new THREE.MeshLambertMaterial({ color: 0x607d8b });
+  const matAislador = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
 
-  const brazoTorre = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.14, 0.14), matTorre);
-  brazoTorre.position.set(2.4, 4.2 + 0.18, -2.0);
-  grupo.add(brazoTorre);
+  for (let sx = -9.0; sx <= -3.0; sx += 3.0) {
+    for (let sz = 3.5; sz <= 8.5; sz += 2.5) {
+      const trafo = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.0, 1.4), matTrafo);
+      trafo.position.set(sx, 1.0 + 0.25, sz);
+      grupo.add(trafo);
+
+      [-0.45, 0, 0.45].forEach(ax => {
+        const aislador = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.14, 0.9, 6), matAislador);
+        aislador.position.set(sx + ax, 2.4 + 0.25, sz);
+        grupo.add(aislador);
+      });
+    }
+  }
+
+  // 5. Dos Torres Gigantescas de Alta Tensión (Lattice Transmission Pylons)
+  const matPilon = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
+  [[3.5, 6.0], [8.5, 6.0]].forEach(([px, pz]) => {
+    const torre = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.7, 13.0, 4), matPilon);
+    torre.position.set(px, 6.5 + 0.25, pz);
+    torre.castShadow = true;
+    grupo.add(torre);
+
+    const brazo1 = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.22, 0.22), matPilon);
+    brazo1.position.set(px, 11.5 + 0.25, pz);
+    grupo.add(brazo1);
+
+    const brazo2 = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.2, 0.2), matPilon);
+    brazo2.position.set(px, 9.8 + 0.25, pz);
+    grupo.add(brazo2);
+  });
+
+  // Cables de alta tensión suspendidos entre torres
+  const matCable = new THREE.MeshBasicMaterial({ color: 0x111111 });
+  [-1.2, 0, 1.2].forEach(cy => {
+    const cable = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.05, 0.05), matCable);
+    cable.position.set(6.0, 11.4 + 0.25 + cy * 0.1, 6.0);
+    grupo.add(cable);
+  });
+
+  // 6. Tanques de almacenamiento de combustible y refrigerante
+  const matTanque = new THREE.MeshLambertMaterial({ color: 0xb0bec5 });
+  const tanqueEsfera = new THREE.Mesh(new THREE.SphereGeometry(2.0, 16, 16), matTanque);
+  tanqueEsfera.position.set(1.5, 2.6, 2.5);
+  grupo.add(tanqueEsfera);
+
+  const soporteTanque = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 1.2, 8), new THREE.MeshLambertMaterial({ color: 0x455a64 }));
+  soporteTanque.position.set(1.5, 0.6 + 0.25, 2.5);
+  grupo.add(soporteTanque);
+
+  const tanqueCilindro = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 4.2, 16), matTanque);
+  tanqueCilindro.position.set(1.5, 2.1 + 0.25, 7.5);
+  grupo.add(tanqueCilindro);
+
+  // Caseta de control y seguridad en la entrada
+  const caseta = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.8, 2.2), new THREE.MeshLambertMaterial({ color: 0xeeeeee }));
+  caseta.position.set(-9.5, 0.9 + 0.25, -9.5);
+  grupo.add(caseta);
 
   grupo.rotation.y = rot;
   return grupo;
 }
+
 
 function criarMunicipalidad(rot) {
   const grupo = new THREE.Group();
@@ -1690,6 +2013,7 @@ function criarMunicipalidad(rot) {
   return grupo;
 }
 
+
 function criarCaixaDAgua() {
   const grupo = new THREE.Group();
   const tanque = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 2.0, 16), new THREE.MeshLambertMaterial({ color: 0x0288d1 }));
@@ -1720,9 +2044,9 @@ function criarEstradaMesh(gx, gz) {
   const grupo = new THREE.Group();
   const w = TAMANHO_CELULA; // 4.0
   const hw = w / 2;         // 2.0
-  const cw = 0.4;           // Ancho del bordillo/acera
-  const hcw = cw / 2;       // 0.2
-  const midLen = w - cw * 2;// 3.2
+  const cw = 0.55;          // Ancho de la calzada / acera
+  const hcw = cw / 2;       // 0.275
+  const midLen = w - cw * 2;
 
   // Detección de calles vecinas ortogonales
   const n = isQualquerEstrada(gx, gz - 1);
@@ -1730,98 +2054,228 @@ function criarEstradaMesh(gx, gz) {
   const e = isQualquerEstrada(gx + 1, gz);
   const wst = isQualquerEstrada(gx - 1, gz);
 
+  // Detección de Rodovía (cuando dos calles paralelas contiguas se juntan)
+  const parE = e && (isQualquerEstrada(gx + 1, gz - 1) || isQualquerEstrada(gx + 1, gz + 1));
+  const parW = wst && (isQualquerEstrada(gx - 1, gz - 1) || isQualquerEstrada(gx - 1, gz + 1));
+  const parN = n && (isQualquerEstrada(gx - 1, gz - 1) || isQualquerEstrada(gx + 1, gz - 1));
+  const parS = s && (isQualquerEstrada(gx - 1, gz + 1) || isQualquerEstrada(gx + 1, gz + 1));
+
+  const esRodoviaVert = (n || s) && (parE || parW);
+  const esRodoviaHoriz = (e || wst) && (parN || parS);
+  const esRodovia = esRodoviaVert || esRodoviaHoriz;
+
   // 1. Asfalto base
-  const geoAsfalto = new THREE.BoxGeometry(w, 0.12, w);
-  const matAsfalto = new THREE.MeshLambertMaterial({ color: 0x263238 });
-  const asfalto = new THREE.Mesh(geoAsfalto, matAsfalto);
+  const matAsfalto = new THREE.MeshLambertMaterial({ color: esRodovia ? 0x1e272c : 0x263238 });
+  const asfalto = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, w), matAsfalto);
   asfalto.position.y = 0.06;
   asfalto.receiveShadow = true;
   grupo.add(asfalto);
 
-  // 2. Aceras y bordillos adaptativos
+  // 2. Aceras (Calçadas) y bordillos
   const matCalcada = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
+  const matTronco = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const matCopa = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+  const matTerra = new THREE.MeshLambertMaterial({ color: 0x3e2723 });
+  const matFarol = new THREE.MeshLambertMaterial({ color: 0x263238 });
+  const matLuzFarol = new THREE.MeshBasicMaterial({ color: 0xfff9c4 });
 
-  // 4 Esquinas fijas de bordillo
-  const geoCanto = new THREE.BoxGeometry(cw, 0.14, cw);
-  const cNW = new THREE.Mesh(geoCanto, matCalcada);
-  cNW.position.set(-hw + hcw, 0.07, -hw + hcw);
-  grupo.add(cNW);
+  // Función auxiliar para plantar un árbol de calzada
+  const plantarArbolCalzada = (tx, tz) => {
+    const canteiro = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.5), matTerra);
+    canteiro.position.set(tx, 0.075, tz);
+    grupo.add(canteiro);
 
-  const cNE = new THREE.Mesh(geoCanto, matCalcada);
-  cNE.position.set(hw - hcw, 0.07, -hw + hcw);
-  grupo.add(cNE);
+    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 1.3, 6), matTronco);
+    tronco.position.set(tx, 0.65 + 0.07, tz);
+    tronco.castShadow = true;
+    grupo.add(tronco);
 
-  const cSW = new THREE.Mesh(geoCanto, matCalcada);
-  cSW.position.set(-hw + hcw, 0.07, hw - hcw);
-  grupo.add(cSW);
+    const copa = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 8), matCopa);
+    copa.position.set(tx, 1.45 + 0.07, tz);
+    copa.castShadow = true;
+    grupo.add(copa);
+  };
 
-  const cSE = new THREE.Mesh(geoCanto, matCalcada);
-  cSE.position.set(hw - hcw, 0.07, hw - hcw);
-  grupo.add(cSE);
+  // Función auxiliar para poste de luz en calzada
+  const colocarFarolCalzada = (lx, lz) => {
+    const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.9, 6), matFarol);
+    poste.position.set(lx, 0.95 + 0.07, lz);
+    grupo.add(poste);
 
-  // Tramos rectos de acera en los laterales donde NO hay calle conectada
-  if (!n) {
-    const bN = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.14, cw), matCalcada);
-    bN.position.set(0, 0.07, -hw + hcw);
-    grupo.add(bN);
-  }
-  if (!s) {
-    const bS = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.14, cw), matCalcada);
-    bS.position.set(0, 0.07, hw - hcw);
-    grupo.add(bS);
-  }
-  if (!wst) {
-    const bW = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.14, midLen), matCalcada);
-    bW.position.set(-hw + hcw, 0.07, 0);
-    grupo.add(bW);
-  }
-  if (!e) {
-    const bE = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.14, midLen), matCalcada);
-    bE.position.set(hw - hcw, 0.07, 0);
-    grupo.add(bE);
-  }
+    const luminaria = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 6), matLuzFarol);
+    luminaria.position.set(lx, 1.95 + 0.07, lz);
+    grupo.add(luminaria);
+  };
 
-  // 3. Pintura de señalización vial blanca adaptable al sentido
-  const matFaixa = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const esp = 0.16;
-  const totalConex = (n ? 1 : 0) + (s ? 1 : 0) + (e ? 1 : 0) + (wst ? 1 : 0);
+  if (esRodovia) {
+    // ==========================================
+    // CONFIGURACIÓN DE RODOVÍA (AUTOPISTA DE MÚLTIPLES CARRILES)
+    // ==========================================
+    const matDivisoriaAmarela = new THREE.MeshLambertMaterial({ color: 0xffd600 });
+    const matFaixaBranca = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const matBarreira = new THREE.MeshLambertMaterial({ color: 0xb0bec5 });
 
-  if (totalConex === 0) {
-    // Calle aislada: línea estándar horizontal
-    const f = new THREE.Mesh(new THREE.BoxGeometry(w * 0.6, 0.01, esp), matFaixa);
-    f.position.y = 0.13;
-    grupo.add(f);
-  } else if ((e || wst) && !n && !s) {
-    // Recta horizontal continua
-    const f = new THREE.Mesh(new THREE.BoxGeometry(w, 0.01, esp), matFaixa);
-    f.position.y = 0.13;
-    grupo.add(f);
-  } else if ((n || s) && !e && !wst) {
-    // Recta vertical continua
-    const f = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, w), matFaixa);
-    f.position.y = 0.13;
-    grupo.add(f);
+    if (esRodoviaVert) {
+      const ladoInternoX = parE ? (hw - 0.1) : (-hw + 0.1);
+      const ladoExternoX = parE ? -hw : hw;
+
+      // Línea divisoria central continua amarilla
+      const lineaCentral = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.015, w), matDivisoriaAmarela);
+      lineaCentral.position.set(ladoInternoX, 0.125, 0);
+      grupo.add(lineaCentral);
+
+      // Muro de seguridad central estilo New Jersey con reflectores
+      const barreiraCentral = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.36, w), matBarreira);
+      barreiraCentral.position.set(ladoInternoX, 0.24, 0);
+      grupo.add(barreiraCentral);
+
+      // Línea punteada de carril rápido
+      const carrilX = parE ? -0.4 : 0.4;
+      for (let fz = -hw + 0.5; fz <= hw - 0.5; fz += 1.4) {
+        const faixa = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.01, 0.7), matFaixaBranca);
+        faixa.position.set(carrilX, 0.125, fz);
+        grupo.add(faixa);
+      }
+
+      // Flecha blanca de sentido vial en el carril
+      const flecha = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.01, 0.5), matFaixaBranca);
+      flecha.position.set(parE ? -0.9 : 0.9, 0.125, 0);
+      grupo.add(flecha);
+
+      // Acera exterior con quitamiedos y árboles en el borde exterior
+      const aceraExt = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.14, w), matCalcada);
+      aceraExt.position.set(ladoExternoX + (parE ? hcw : -hcw), 0.07, 0);
+      grupo.add(aceraExt);
+
+      plantarArbolCalzada(ladoExternoX + (parE ? hcw : -hcw), 0);
+
+      // Poste de alta luminaria de autopista en la mediana
+      const posteAutopista = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.8, 6), matFarol);
+      posteAutopista.position.set(ladoInternoX, 1.9 + 0.1, 0);
+      grupo.add(posteAutopista);
+      const foco = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), matLuzFarol);
+      foco.position.set(ladoInternoX, 3.8 + 0.1, 0);
+      grupo.add(foco);
+    } else {
+      // Rodovía Horizontal
+      const ladoInternoZ = parS ? (hw - 0.1) : (-hw + 0.1);
+      const ladoExternoZ = parS ? -hw : hw;
+
+      const lineaCentral = new THREE.Mesh(new THREE.BoxGeometry(w, 0.015, 0.14), matDivisoriaAmarela);
+      lineaCentral.position.set(0, 0.125, ladoInternoZ);
+      grupo.add(lineaCentral);
+
+      const barreiraCentral = new THREE.Mesh(new THREE.BoxGeometry(w, 0.36, 0.18), matBarreira);
+      barreiraCentral.position.set(0, 0.24, ladoInternoZ);
+      grupo.add(barreiraCentral);
+
+      const carrilZ = parS ? -0.4 : 0.4;
+      for (let fx = -hw + 0.5; fx <= hw - 0.5; fx += 1.4) {
+        const faixa = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.01, 0.12), matFaixaBranca);
+        faixa.position.set(fx, 0.125, carrilZ);
+        grupo.add(faixa);
+      }
+
+      const aceraExt = new THREE.Mesh(new THREE.BoxGeometry(w, 0.14, cw), matCalcada);
+      aceraExt.position.set(0, 0.07, ladoExternoZ + (parS ? hcw : -hcw));
+      grupo.add(aceraExt);
+
+      plantarArbolCalzada(0, ladoExternoZ + (parS ? hcw : -hcw));
+    }
   } else {
-    // Cruces, rotondas, curvas (L) o cruces en T: líneas ramificadas al centro
-    if (n) {
-      const fN = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, hw), matFaixa);
-      fN.position.set(0, 0.13, -hw / 2);
-      grupo.add(fN);
+    // ==========================================
+    // CONFIGURACIÓN DE CALLE URBANA CON ACERAS Y ÁRBOLES
+    // ==========================================
+    const geoCanto = new THREE.BoxGeometry(cw, 0.14, cw);
+    const cNW = new THREE.Mesh(geoCanto, matCalcada); cNW.position.set(-hw + hcw, 0.07, -hw + hcw); grupo.add(cNW);
+    const cNE = new THREE.Mesh(geoCanto, matCalcada); cNE.position.set(hw - hcw, 0.07, -hw + hcw); grupo.add(cNE);
+    const cSW = new THREE.Mesh(geoCanto, matCalcada); cSW.position.set(-hw + hcw, 0.07, hw - hcw); grupo.add(cSW);
+    const cSE = new THREE.Mesh(geoCanto, matCalcada); cSE.position.set(hw - hcw, 0.07, hw - hcw); grupo.add(cSE);
+
+    // Tramos rectos de acera y árboles donde NO hay calle contigua
+    if (!n) {
+      const bN = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.14, cw), matCalcada);
+      bN.position.set(0, 0.07, -hw + hcw);
+      grupo.add(bN);
+      plantarArbolCalzada(0, -hw + hcw);
+      colocarFarolCalzada(-hw + cw * 1.5, -hw + hcw);
     }
-    if (s) {
-      const fS = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, hw), matFaixa);
-      fS.position.set(0, 0.13, hw / 2);
-      grupo.add(fS);
+    if (!s) {
+      const bS = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.14, cw), matCalcada);
+      bS.position.set(0, 0.07, hw - hcw);
+      grupo.add(bS);
+      plantarArbolCalzada(0, hw - hcw);
+      colocarFarolCalzada(hw - cw * 1.5, hw - hcw);
     }
-    if (wst) {
-      const fW = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.01, esp), matFaixa);
-      fW.position.set(-hw / 2, 0.13, 0);
-      grupo.add(fW);
+    if (!wst) {
+      const bW = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.14, midLen), matCalcada);
+      bW.position.set(-hw + hcw, 0.07, 0);
+      grupo.add(bW);
+      plantarArbolCalzada(-hw + hcw, 0);
+      colocarFarolCalzada(-hw + hcw, hw - cw * 1.5);
     }
-    if (e) {
-      const fE = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.01, esp), matFaixa);
-      fE.position.set(hw / 2, 0.13, 0);
-      grupo.add(fE);
+    if (!e) {
+      const bE = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.14, midLen), matCalcada);
+      bE.position.set(hw - hcw, 0.07, 0);
+      grupo.add(bE);
+      plantarArbolCalzada(hw - hcw, 0);
+      colocarFarolCalzada(hw - hcw, -hw + cw * 1.5);
+    }
+
+    // Señalización vial blanca
+    const matFaixa = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const esp = 0.16;
+    const totalConex = (n ? 1 : 0) + (s ? 1 : 0) + (e ? 1 : 0) + (wst ? 1 : 0);
+
+    if (totalConex === 0) {
+      const f = new THREE.Mesh(new THREE.BoxGeometry(w * 0.6, 0.01, esp), matFaixa);
+      f.position.y = 0.13;
+      grupo.add(f);
+    } else if ((e || wst) && !n && !s) {
+      const f = new THREE.Mesh(new THREE.BoxGeometry(w, 0.01, esp), matFaixa);
+      f.position.y = 0.13;
+      grupo.add(f);
+    } else if ((n || s) && !e && !wst) {
+      const f = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, w), matFaixa);
+      f.position.y = 0.13;
+      grupo.add(f);
+    } else {
+      if (n) {
+        const fN = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, hw), matFaixa);
+        fN.position.set(0, 0.13, -hw / 2);
+        grupo.add(fN);
+      }
+      if (s) {
+        const fS = new THREE.Mesh(new THREE.BoxGeometry(esp, 0.01, hw), matFaixa);
+        fS.position.set(0, 0.13, hw / 2);
+        grupo.add(fS);
+      }
+      if (wst) {
+        const fW = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.01, esp), matFaixa);
+        fW.position.set(-hw / 2, 0.13, 0);
+        grupo.add(fW);
+      }
+      if (e) {
+        const fE = new THREE.Mesh(new THREE.BoxGeometry(hw, 0.01, esp), matFaixa);
+        fE.position.set(hw / 2, 0.13, 0);
+        grupo.add(fE);
+      }
+    }
+
+    // Paso de peatones (cebra) en intersecciones
+    if (totalConex >= 2) {
+      [-0.4, 0, 0.4].forEach(offsetPaso => {
+        if (n && !s) {
+          const cebra = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.012, 0.6), matFaixa);
+          cebra.position.set(offsetPaso, 0.13, -1.1);
+          grupo.add(cebra);
+        }
+        if (e && !wst) {
+          const cebra = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.012, 0.18), matFaixa);
+          cebra.position.set(1.1, 0.13, offsetPaso);
+          grupo.add(cebra);
+        }
+      });
     }
   }
 
@@ -1834,7 +2288,7 @@ function criarEstradaEmpedradoMesh(gx, gz) {
   const grupo = new THREE.Group();
   const w = TAMANHO_CELULA;
   const hw = w / 2;
-  const cw = 0.35;
+  const cw = 0.45;
   const hcw = cw / 2;
   const midLen = w - cw * 2;
 
@@ -1861,8 +2315,10 @@ function criarEstradaEmpedradoMesh(gx, gz) {
     }
   }
 
-  // Bordillos de piedra rústica
+  // Bordillos y aceras coloniales de piedra
   const matCordao = new THREE.MeshLambertMaterial({ color: 0x78909c });
+  const matTronco = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+  const matCopa = new THREE.MeshLambertMaterial({ color: 0x388e3c });
   const geoCanto = new THREE.BoxGeometry(cw, 0.13, cw);
   [[-hw + hcw, -hw + hcw], [hw - hcw, -hw + hcw], [-hw + hcw, hw - hcw], [hw - hcw, hw - hcw]].forEach(([px, pz]) => {
     const c = new THREE.Mesh(geoCanto, matCordao);
@@ -1874,6 +2330,12 @@ function criarEstradaEmpedradoMesh(gx, gz) {
     const b = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.13, cw), matCordao);
     b.position.set(0, 0.065, -hw + hcw);
     grupo.add(b);
+    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 1.2, 6), matTronco);
+    tronco.position.set(0, 0.6 + 0.065, -hw + hcw);
+    grupo.add(tronco);
+    const copa = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 8), matCopa);
+    copa.position.set(0, 1.3 + 0.065, -hw + hcw);
+    grupo.add(copa);
   }
   if (!s) {
     const b = new THREE.Mesh(new THREE.BoxGeometry(midLen, 0.13, cw), matCordao);
@@ -1936,7 +2398,7 @@ function criarEstradaTerraMesh(gx, gz) {
     });
   }
 
-  // Pequeñas bermas de vegetación en los costados sin empalme
+  // Pequeñas bermas de vegetación y árboles rústicos
   const matMato = new THREE.MeshLambertMaterial({ color: 0x33691e });
   if (!n) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 0.08, 0.3), matMato);
@@ -1965,6 +2427,288 @@ function criarEstradaTerraMesh(gx, gz) {
 }
 
 /* ============================================================
+   SISTEMA DINÁMICO DE TRÁFICO VEHICULAR Y PEATONAL
+   ============================================================ */
+const transitoKatuete = {
+  iniciado: false,
+  grupo: null,
+  reloj: new THREE.Clock(),
+  carros: [],
+  peatones: [],
+  coloresCarros: [0xd32f2f, 0x1976d2, 0xfbc02d, 0xffffff, 0x212121, 0x388e3c, 0xff7043, 0x7b1fa2, 0x00bcd4, 0x546e7a],
+  coloresRopa: [0xe53935, 0x1e88e5, 0x43a047, 0xfdd835, 0x8e24aa, 0xfb8c00, 0x00acc1, 0x3949ab]
+};
+
+function criarMeshCarroSimulado(colorCarro) {
+  const carroGrupo = new THREE.Group();
+  const matPintura = new THREE.MeshLambertMaterial({ color: colorCarro });
+  const matVidrio = new THREE.MeshLambertMaterial({ color: 0x212121 });
+  const matRueda = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  const matLuzDelantera = new THREE.MeshBasicMaterial({ color: 0xfff9c4 });
+  const matLuzTrasera = new THREE.MeshBasicMaterial({ color: 0xd50000 });
+
+  // Chasis aerodinámico
+  const chasis = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.42, 2.2), matPintura);
+  chasis.position.y = 0.32;
+  chasis.castShadow = true;
+  carroGrupo.add(chasis);
+
+  // Cabina y ventanillas oscuras
+  const cabina = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.36, 1.2), matVidrio);
+  cabina.position.set(0, 0.65, -0.1);
+  carroGrupo.add(cabina);
+
+  // Luces delanteras (faros)
+  [-0.42, 0.42].forEach(lx => {
+    const luzD = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.05), matLuzDelantera);
+    luzD.position.set(lx, 0.35, 1.11);
+    carroGrupo.add(luzD);
+  });
+
+  // Luces traseras
+  [-0.42, 0.42].forEach(lx => {
+    const luzT = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.05), matLuzTrasera);
+    luzT.position.set(lx, 0.35, -1.11);
+    carroGrupo.add(luzT);
+  });
+
+  // 4 Ruedas
+  [[-0.58, -0.6], [0.58, -0.6], [-0.58, 0.6], [0.58, 0.6]].forEach(([rx, rz]) => {
+    const rueda = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.16, 8), matRueda);
+    rueda.rotation.z = Math.PI / 2;
+    rueda.position.set(rx, 0.2, rz);
+    carroGrupo.add(rueda);
+  });
+
+  return carroGrupo;
+}
+
+function criarMeshPeatonSimulado(colorCamisa) {
+  const pGrupo = new THREE.Group();
+  const matCamisa = new THREE.MeshLambertMaterial({ color: colorCamisa });
+  const matPantalon = new THREE.MeshLambertMaterial({ color: 0x263238 });
+  const matPiel = new THREE.MeshLambertMaterial({ color: 0xffcc80 });
+  const matCabello = new THREE.MeshLambertMaterial({ color: 0x3e2723 });
+
+  // Torso / Camisa
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.45, 0.2), matCamisa);
+  torso.position.y = 0.55;
+  torso.castShadow = true;
+  pGrupo.add(torso);
+
+  // Piernas
+  const piernas = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.42, 0.18), matPantalon);
+  piernas.position.y = 0.22;
+  pGrupo.add(piernas);
+
+  // Cabeza
+  const cabeza = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), matPiel);
+  cabeza.position.y = 0.9;
+  pGrupo.add(cabeza);
+
+  // Cabello / Gorra
+  const cabello = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.22), matCabello);
+  cabello.position.y = 1.0;
+  pGrupo.add(cabello);
+
+  return pGrupo;
+}
+
+function obtenerCeldasCallesActivas() {
+  const lista = [];
+  const c = Math.floor(TAMANHO_GRADE / 2);
+  const radio = 35; // Enfocar tráfico en radio activo
+  for (let z = Math.max(0, c - radio); z < Math.min(TAMANHO_GRADE, c + radio); z++) {
+    for (let x = Math.max(0, c - radio); x < Math.min(TAMANHO_GRADE, c + radio); x++) {
+      if (isQualquerEstrada(x, z)) {
+        lista.push({ gx: x, gz: z });
+      }
+    }
+  }
+  return lista;
+}
+
+function iniciarSistemaTransito() {
+  if (transitoKatuete.iniciado || !cena) return;
+  transitoKatuete.grupo = new THREE.Group();
+  transitoKatuete.grupo.name = 'grupo_transito_simulado';
+  cena.add(transitoKatuete.grupo);
+
+  const calles = obtenerCeldasCallesActivas();
+  if (calles.length === 0) return;
+
+  // Instanciar 20 Carros circulantes
+  const totalCarros = 20;
+  for (let i = 0; i < totalCarros; i++) {
+    const celda = calles[Math.floor(Math.random() * calles.length)];
+    const color = transitoKatuete.coloresCarros[i % transitoKatuete.coloresCarros.length];
+    const mesh = criarMeshCarroSimulado(color);
+    transitoKatuete.grupo.add(mesh);
+
+    const { x, z } = gradeParaMundo(celda.gx, celda.gz);
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const d = dirs[Math.floor(Math.random() * dirs.length)];
+
+    transitoKatuete.carros.push({
+      mesh,
+      gx: celda.gx,
+      gz: celda.gz,
+      x,
+      z,
+      dx: d[0],
+      dz: d[1],
+      velocidad: 6.0 + Math.random() * 4.0,
+      laneOffset: 0.85
+    });
+  }
+
+  // Instanciar 26 Peatones paseando por las aceras
+  const totalPeatones = 26;
+  for (let i = 0; i < totalPeatones; i++) {
+    const celda = calles[Math.floor(Math.random() * calles.length)];
+    const color = transitoKatuete.coloresRopa[i % transitoKatuete.coloresRopa.length];
+    const mesh = criarMeshPeatonSimulado(color);
+    transitoKatuete.grupo.add(mesh);
+
+    const { x, z } = gradeParaMundo(celda.gx, celda.gz);
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const d = dirs[Math.floor(Math.random() * dirs.length)];
+
+    transitoKatuete.peatones.push({
+      mesh,
+      gx: celda.gx,
+      gz: celda.gz,
+      x,
+      z,
+      dx: d[0],
+      dz: d[1],
+      velocidad: 1.4 + Math.random() * 0.8,
+      offsetSidewalk: (Math.random() > 0.5 ? 1 : -1) * 1.55,
+      animTimer: Math.random() * 10
+    });
+  }
+
+  transitoKatuete.iniciado = true;
+}
+
+function actualizarSistemaTransito(delta) {
+  if (!transitoKatuete.iniciado) {
+    iniciarSistemaTransito();
+    return;
+  }
+  const dt = Math.min(delta, 0.1);
+
+  // 1. Simulación y animación de vehículos
+  transitoKatuete.carros.forEach(car => {
+    car.x += car.dx * car.velocidad * dt;
+    car.z += car.dz * car.velocidad * dt;
+
+    // Calcular posición en el carril derecho relativo al vector de avance
+    const perpX = -car.dz * car.laneOffset;
+    const perpZ = car.dx * car.laneOffset;
+    car.mesh.position.set(car.x + perpX, 0.06, car.z + perpZ);
+
+    // Orientar carro hacia el sentido de marcha
+    const angulo = Math.atan2(car.dx, car.dz);
+    car.mesh.rotation.y = angulo;
+
+    // Chequear proximidad al centro de la celda de grilla para tomar decisiones de giro
+    const centroMundo = gradeParaMundo(car.gx, car.gz);
+    const dist = Math.hypot(car.x - centroMundo.x, car.z - centroMundo.z);
+
+    if (dist >= TAMANHO_CELULA * 0.95) {
+      // Avanzar celda lógica
+      const sigGx = car.gx + car.dx;
+      const sigGz = car.gz + car.dz;
+
+      if (celulaValida(sigGx, sigGz) && isQualquerEstrada(sigGx, sigGz)) {
+        car.gx = sigGx;
+        car.gz = sigGz;
+
+        // Opciones de bifurcación
+        const posibles = [];
+        const opciones = [
+          [car.dx, car.dz],        // recto
+          [-car.dz, car.dx],       // giro izquierda
+          [car.dz, -car.dx]        // giro derecha
+        ];
+
+        opciones.forEach(([ox, oz]) => {
+          const nx = car.gx + ox;
+          const nz = car.gz + oz;
+          if (celulaValida(nx, nz) && isQualquerEstrada(nx, nz)) {
+            posibles.push([ox, oz]);
+          }
+        });
+
+        if (posibles.length > 0) {
+          // 65% probabilidad de seguir recto si existe camino, de lo contrario elegir giro válido
+          const tieneRecto = posibles.some(p => p[0] === car.dx && p[1] === car.dz);
+          if (tieneRecto && Math.random() < 0.65) {
+            // sigue recto
+          } else {
+            const elegido = posibles[Math.floor(Math.random() * posibles.length)];
+            car.dx = elegido[0];
+            car.dz = elegido[1];
+          }
+        } else {
+          // Callejón sin salida: dar media vuelta
+          car.dx = -car.dx;
+          car.dz = -car.dz;
+        }
+      } else {
+        // Calle terminada o rota: reposicionar suavemente en otra calle válida
+        const calles = obtenerCeldasCallesActivas();
+        if (calles.length > 0) {
+          const nueva = calles[Math.floor(Math.random() * calles.length)];
+          const gm = gradeParaMundo(nueva.gx, nueva.gz);
+          car.gx = nueva.gx;
+          car.gz = nueva.gz;
+          car.x = gm.x;
+          car.z = gm.z;
+        }
+      }
+    }
+  });
+
+  // 2. Simulación y animación de peatones en las aceras
+  transitoKatuete.peatones.forEach(p => {
+    p.animTimer += dt;
+    p.x += p.dx * p.velocidad * dt;
+    p.z += p.dz * p.velocidad * dt;
+
+    // Calcular desplazamiento de la vereda lateral
+    const perpX = -p.dz * p.offsetSidewalk;
+    const perpZ = p.dx * p.offsetSidewalk;
+
+    // Animación de caminata realista (balanceo rítmico de pasos)
+    const pasoY = Math.abs(Math.sin(p.animTimer * 8)) * 0.06;
+    p.mesh.position.set(p.x + perpX, 0.14 + pasoY, p.z + perpZ);
+    p.mesh.rotation.y = Math.atan2(p.dx, p.dz);
+    p.mesh.rotation.z = Math.sin(p.animTimer * 8) * 0.04;
+
+    const centroMundo = gradeParaMundo(p.gx, p.gz);
+    const dist = Math.hypot(p.x - centroMundo.x, p.z - centroMundo.z);
+
+    if (dist >= TAMANHO_CELULA * 0.95) {
+      const sigGx = p.gx + p.dx;
+      const sigGz = p.gz + p.dz;
+      if (celulaValida(sigGx, sigGz) && isQualquerEstrada(sigGx, sigGz)) {
+        p.gx = sigGx;
+        p.gz = sigGz;
+        if (Math.random() < 0.25) {
+          // Cambiar de acera o girar en esquina
+          p.offsetSidewalk = -p.offsetSidewalk;
+        }
+      } else {
+        p.dx = -p.dx;
+        p.dz = -p.dz;
+      }
+    }
+  });
+}
+
+/* ============================================================
    8. GESTIÓN DEL MAPA Y RENDERIZADO DE CHUNKS
    ============================================================ */
 function criarEtiquetaEdificio(tipo, inquilino) {
@@ -1974,7 +2718,7 @@ function criarEtiquetaEdificio(tipo, inquilino) {
   let colorTexto = '#ffffff';
   let alturaY = 4.8;
 
-  const esVivienda = ['casa', 'sobrado', 'predio'].includes(tipo);
+  const esVivienda = ['casa', 'sobrado', 'predio', 'casa_moderna'].includes(tipo);
 
   if (esVivienda) {
     if (inquilino) {
@@ -1983,12 +2727,12 @@ function criarEtiquetaEdificio(tipo, inquilino) {
       colorBorde = '#64b5f6';
       colorTexto = '#ffffff';
     } else {
-      textoPrincipal = '🏷️ Se Alquila';
+      textoPrincipal = tipo === 'casa_moderna' ? '🏡 Mansión' : '🏷️ Se Alquila';
       colorFondo = 'rgba(230, 81, 0, 0.94)';
       colorBorde = '#ffb74d';
       colorTexto = '#fffde7';
     }
-    alturaY = tipo === 'predio' ? 19.5 : (tipo === 'sobrado' ? 8.4 : 4.8);
+    alturaY = tipo === 'predio' ? 19.5 : (tipo === 'sobrado' ? 8.4 : (tipo === 'casa_moderna' ? 6.2 : 4.8));
   } else {
     switch (tipo) {
       case 'loja':
@@ -2115,6 +2859,7 @@ function criarMeshParaTipo(tipo, rotRad, gx, gz, inquilino = null, autor = 'Muni
     case 'estrada_terra': mesh = criarEstradaTerraMesh(gx, gz); break;
     case 'casa': mesh = criarCasa(rotRad); break;
     case 'sobrado': mesh = criarSobrado(rotRad); break;
+    case 'casa_moderna': mesh = criarCasaModerna(rotRad); break;
     case 'predio': mesh = criarPredio(rotRad); break;
     case 'loja': mesh = criarLoja(rotRad); break;
     case 'padaria': mesh = criarPadaria(rotRad); break;
@@ -3406,7 +4151,7 @@ function iniciarTurnoTrabajoLocal() {
 function alquilarCasaLocal(gx, gz) {
   let celda = estado.grade[gz]?.[gx];
   if (celda && celda.esHijo) celda = estado.grade[celda.rootZ]?.[celda.rootX];
-  if (!celda || !['casa', 'sobrado', 'predio'].includes(celda.tipo)) return;
+  if (!celda || !['casa', 'sobrado', 'predio', 'casa_moderna'].includes(celda.tipo)) return;
 
   if (celda.autor === jugadorLocal.nombre && !jugadorLocal.esAdmin) {
     mostrarNotificacion('ℹ️ Esta propiedad ya te pertenece. Puedes configurarla en alquiler para que otros ciudadanos te paguen.');
@@ -3805,7 +4550,7 @@ function mostrarDetallesCelula(gx, gz) {
     if (!celda) return;
   }
 
-  const esVivienda = ['casa', 'sobrado', 'predio'].includes(celda.tipo);
+  const esVivienda = ['casa', 'sobrado', 'predio', 'casa_moderna'].includes(celda.tipo);
   const esCalle = isQualquerEstrada(gx, gz);
   const precioAlquiler = celda.precioAlquiler || 150;
   const duracionSegundos = celda.duracionAlquilerSegundos || 180;
@@ -3828,6 +4573,7 @@ function mostrarDetallesCelula(gx, gz) {
   let nombreTipo = celda.tipo.toUpperCase();
   if (celda.tipo === 'casa') nombreTipo = '🏠 Casa Familiar';
   else if (celda.tipo === 'sobrado') nombreTipo = '🏡 Sobrado Duplex';
+  else if (celda.tipo === 'casa_moderna') nombreTipo = '🏡 Mansión Moderna de Lujo (2x2)';
   else if (celda.tipo === 'predio') nombreTipo = '🏢 Edificio Departamental';
   else if (celda.tipo === 'loja') nombreTipo = '🏪 Tienda General';
   else if (celda.tipo === 'padaria') nombreTipo = '🥖 Panadería Artesanal';
@@ -3837,8 +4583,8 @@ function mostrarDetallesCelula(gx, gz) {
   else if (celda.tipo === 'loja_veiculos') nombreTipo = '🚗 Concesionaria Katueté (2x2)';
   else if (celda.tipo === 'banco') nombreTipo = '🏦 Banco Central de Katueté (2x2)';
   else if (celda.tipo === 'posto') nombreTipo = '⛽ Estación de Servicios';
-  else if (celda.tipo === 'parque') nombreTipo = '🌳 Parque Ecológico (3x3)';
-  else if (celda.tipo === 'usina') nombreTipo = '⚡ Usina Eléctrica (2x2)';
+  else if (celda.tipo === 'parque') nombreTipo = '🌳 Parque Metropolitano (6x6)';
+  else if (celda.tipo === 'usina') nombreTipo = '⚡ Complejo Usina Eléctrica (6x6)';
   else if (celda.tipo === 'caixaDAgua') nombreTipo = '💧 Tanque de Agua';
   else if (celda.tipo === 'municipalidad') nombreTipo = '🏛️ Palacio Municipal (3x3)';
   else if (celda.tipo === 'estrada_terra') nombreTipo = '🚜 Calle de Tierra';
@@ -4031,7 +4777,7 @@ function seleccionarHerramienta(nome) {
   const indRot = document.getElementById('indicador-rotacao');
   const btnRotarTouch = document.getElementById('btn-rotar-touch');
   const precisaRot = [
-    'casa', 'sobrado', 'predio', 'loja', 'padaria', 'mercado',
+    'casa', 'sobrado', 'predio', 'casa_moderna', 'loja', 'padaria', 'mercado',
     'loja_roupa', 'restaurante', 'loja_veiculos', 'banco',
     'posto', 'usina', 'municipalidad', 'mover'
   ].includes(nome);
@@ -4355,6 +5101,7 @@ function desenharMiniMapa() {
     estrada_empedrado: '#78909c',
     casa: '#ffb74d',
     sobrado: '#0288d1',
+    casa_moderna: '#ab47bc',
     predio: '#90a4ae',
     loja: '#fbc02d',
     posto: '#e53935',
@@ -4456,6 +5203,9 @@ function animar() {
     luzSol.target.position.set(controles.target.x, 0, controles.target.z);
     luzSol.target.updateMatrixWorld();
   }
+
+  const delta = transitoKatuete.reloj ? transitoKatuete.reloj.getDelta() : 0.016;
+  actualizarSistemaTransito(delta);
 
   actualizarChunksCamara();
   procesarFilaChunks();
